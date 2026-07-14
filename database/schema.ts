@@ -90,8 +90,32 @@ CREATE TABLE IF NOT EXISTS sabbath_quarters (
   human_date TEXT NOT NULL,
   start_date TEXT NOT NULL,
   end_date TEXT NOT NULL,
+  cover TEXT,
   data TEXT NOT NULL,
   downloaded_at TEXT NOT NULL
+);
+
+-- Per-question written answers and per-paragraph highlights for Sabbath School lessons,
+-- keyed the same way as the quarter itself so different language/edition downloads of
+-- the same quarter keep separate notes.
+CREATE TABLE IF NOT EXISTS sabbath_answers (
+  id INTEGER PRIMARY KEY NOT NULL,
+  quarter_id TEXT NOT NULL,
+  week INTEGER NOT NULL,
+  day INTEGER NOT NULL,
+  block_index INTEGER NOT NULL,
+  answer TEXT NOT NULL DEFAULT '',
+  updated_date TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sabbath_highlights (
+  id INTEGER PRIMARY KEY NOT NULL,
+  quarter_id TEXT NOT NULL,
+  week INTEGER NOT NULL,
+  day INTEGER NOT NULL,
+  block_index INTEGER NOT NULL,
+  color TEXT NOT NULL,
+  created_date TEXT NOT NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_habits_type_date ON habits (habit_type, date);
@@ -99,4 +123,6 @@ CREATE INDEX IF NOT EXISTS idx_bible_lookup ON bible (translation, book, chapter
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmarks_verse ON bookmarks (book, chapter, verse);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_highlights_verse ON highlights (book, chapter, verse);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_egw_highlights_para ON egw_highlights (book, chapter, paragraph);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sabbath_answers_block ON sabbath_answers (quarter_id, week, day, block_index);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sabbath_highlights_block ON sabbath_highlights (quarter_id, week, day, block_index);
 `;

@@ -5,6 +5,7 @@ import type * as NotificationsModule from 'expo-notifications';
 import { getKv, setKv } from '@/database/kv';
 import { getReminders, REMINDER_DEFS, ReminderType } from '@/database/reminders';
 import { getNotes } from '@/database/notes';
+import { getTodaysLesson } from '@/database/sabbathSchool';
 
 // expo-notifications crashes on import in Expo Go on Android since SDK 53 (it removed
 // support and throws instead of just warning) — even just `require`-ing the module is
@@ -69,6 +70,10 @@ async function buildReminderContent(
       return { title: def.title, body: `Pray for: ${titles}` };
     }
   }
+  if (def.type === 'sabbath_school') {
+    const lesson = await getTodaysLesson(db);
+    if (lesson) return { title: def.title, body: lesson.lessonTitle };
+  }
   return { title: def.title, body: def.body };
 }
 
@@ -126,6 +131,16 @@ export async function refreshPrayerReminders(db: SQLiteDatabase): Promise<void> 
       await scheduleReminderNotification(db, r.type, r.time);
     }
   }
+}
+
+// The Sabbath School reminder's body names today's lesson title, which changes weekly —
+// call this after a successful sync so an already-enabled reminder picks up the new title
+// instead of repeating whatever lesson was current when it was first scheduled.
+export async function refreshSabbathSchoolReminder(db: SQLiteDatabase): Promise<void> {
+  if (!Notifications) return;
+  const reminders = await getReminders(db);
+  const reminder = reminders.find((r) => r.type === 'sabbath_school');
+  if (reminder?.enabled) await scheduleReminderNotification(db, 'sabbath_school', reminder.time);
 }
 
 const noteNotificationIdKey = (noteId: number) => `notif_id_note_${noteId}`;

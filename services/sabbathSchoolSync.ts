@@ -97,6 +97,21 @@ function parseDayFile(raw: string): { title: string; date: string; blocks: Sabba
       blocks.push({ type: 'heading', text: cleanInline(line.replace(/^#{2,6}\s+/, '')) });
       continue;
     }
+    // Discussion questions are wrapped in a single backtick-fenced line in the source —
+    // the only reliable signal separating them from ordinary prose (some end in "?" too).
+    const questionMatch = line.trim().match(/^`(.+)`$/);
+    if (questionMatch) {
+      flush();
+      blocks.push({ type: 'question', text: cleanInline(questionMatch[1]) });
+      continue;
+    }
+    // A lone "**Discussion Questions**:" style line is a bold sub-heading, not body prose.
+    const boldLabelMatch = line.trim().match(/^\*\*(.+?)\*\*(:?)\s*$/);
+    if (boldLabelMatch) {
+      flush();
+      blocks.push({ type: 'heading', text: cleanInline(boldLabelMatch[1]) + boldLabelMatch[2] });
+      continue;
+    }
     if (/^>\s?/.test(line)) {
       if (bufType !== 'quote') flush();
       bufType = 'quote';
@@ -158,44 +173,66 @@ async function fetchQuarter(lang: string, code: string, edition: string): Promis
     humanDate: info.human_date ?? '',
     startDate: info.start_date ?? '',
     endDate: info.end_date ?? '',
+    cover: `${base}/cover.png`,
     lessons,
   };
 }
 
 export type SyncResult = { synced: boolean; code?: string; reason?: string };
 
-// Called on app launch/foreground and from the manual Update button — always the
-// standard English edition (the default everyone gets automatically). Other
-// languages/editions are opt-in downloads via syncSpecificQuarter, triggered from the
-// language picker, never automatically.
+// Called on app launch/foreground and from the manual Update button — the standard
+// edition, in English and chiShona (the two defaults everyone gets automatically). Other
+// editions (e.g. Easy Reading) are opt-in downloads via syncSpecificQuarter, triggered
+// from the language picker, never automatically. Only ever moves forward: the current
+// quarter and the next one — past quarters are never auto-downloaded, only kept if
+// already on the device.
 export async function syncSabbathSchool(db: SQLiteDatabase, options: { force?: boolean } = {}): Promise<SyncResult> {
   const today = new Date();
-  const candidates = [quarterCodeForDate(today), shiftQuarter(quarterCodeForDate(today), 1), shiftQuarter(quarterCodeForDate(today), -1)];
+  const candidates = [quarterCodeForDate(today), shiftQuarter(quarterCodeForDate(today), 1)];
+  const languages = ['en', 'sn'];
 
-  for (const code of candidates) {
-    const id = quarterVariantId('en', code, '');
-    if (!options.force && (await hasQuarter(db, id))) continue;
-    const quarter = await fetchQuarter('en', code, '');
-    if (!quarter) continue;
-    await saveQuarter(db, quarter);
+  let syncedAny = false;
+  for (const lang of languages) {
+    for (const code of candidates) {
+      const id = quarterVariantId(lang, code, '');
+      if (!options.force && (await hasQuarter(db, id))) continue;
+      const quarter = await fetchQuarter(lang, code, '');
+      if (!quarter) continue;
+      await saveQuarter(db, quarter);
+      syncedAny = true;
+    }
+  }
+  if (syncedAny) {
     await setKv(db, LAST_SYNC_KEY, new Date().toISOString());
-    return { synced: true, code };
+    return { synced: true };
   }
   return { synced: false, reason: 'No new quarter available or offline' };
 }
 
+const TRANSLATION_LAG_LOOKBACK = 4;
+
 // Explicit, user-triggered download of a specific language/edition — used by the
-// Sabbath School screen's language picker, never called automatically.
+// Sabbath School screen's language picker, never called automatically. Non-English
+// translations (and Easy Reading) commonly lag a quarter or more behind the English
+// original, so if the current quarter isn't translated yet, step backward until we find
+// the most recent one that is, rather than reporting "not available" for a quarter that
+// simply hasn't been translated yet.
 export async function syncSpecificQuarter(
   db: SQLiteDatabase,
   lang: string,
   edition: string,
   code: string = quarterCodeForDate(new Date())
 ): Promise<SyncResult> {
-  const quarter = await fetchQuarter(lang, code, edition);
-  if (!quarter) return { synced: false, reason: 'Not available for this language/edition/quarter yet' };
-  await saveQuarter(db, quarter);
-  return { synced: true, code };
+  let candidate = code;
+  for (let i = 0; i <= TRANSLATION_LAG_LOOKBACK; i++) {
+    const quarter = await fetchQuarter(lang, candidate, edition);
+    if (quarter) {
+      await saveQuarter(db, quarter);
+      return { synced: true, code: candidate };
+    }
+    candidate = shiftQuarter(candidate, -1);
+  }
+  return { synced: false, reason: 'Not available for this language/edition yet' };
 }
 
 export async function getLastSyncTime(db: SQLiteDatabase): Promise<string | null> {

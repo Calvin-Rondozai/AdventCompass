@@ -3,6 +3,13 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 export const HIGHLIGHT_COLORS = ['yellow', 'green', 'blue', 'pink'] as const;
 export type HighlightColor = (typeof HIGHLIGHT_COLORS)[number];
 
+// Shared swatch hex values for every paragraph/verse-style highlighter in the app (Bible,
+// EGW books, Sabbath School lessons) — one place to keep them visually consistent.
+export const HIGHLIGHT_HEX: Record<'light' | 'dark', Record<HighlightColor, string>> = {
+  light: { yellow: '#FEF3C7', green: '#D1FAE5', blue: '#DBEAFE', pink: '#FCE7F3' },
+  dark: { yellow: '#4A3B12', green: '#0F3D2E', blue: '#0F2A4A', pink: '#3D1530' },
+};
+
 export type Highlight = { id: number; book: string; chapter: number; verse: number; color: HighlightColor; created_date: string };
 
 export async function getAllHighlights(db: SQLiteDatabase): Promise<Highlight[]> {

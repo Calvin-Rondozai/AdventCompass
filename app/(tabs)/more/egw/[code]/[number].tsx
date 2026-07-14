@@ -8,14 +8,9 @@ import { ChevronLeft, ChevronRight, NotebookPen, Palette, X } from '@/components
 import { useTheme } from '@/theme/ThemeProvider';
 import { getEgwBook } from '@/database/egwBooks';
 import { getEgwHighlightsForChapter, toggleEgwHighlightColor } from '@/database/egwHighlights';
-import { HIGHLIGHT_COLORS, HighlightColor } from '@/database/highlights';
+import { HIGHLIGHT_COLORS, HIGHLIGHT_HEX, HighlightColor } from '@/database/highlights';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body, Heading, Label } from '@/components/ui/Typography';
-
-const HIGHLIGHT_HEX: Record<'light' | 'dark', Record<HighlightColor, string>> = {
-  light: { yellow: '#FEF3C7', green: '#D1FAE5', blue: '#DBEAFE', pink: '#FCE7F3' },
-  dark: { yellow: '#4A3B12', green: '#0F3D2E', blue: '#0F2A4A', pink: '#3D1530' },
-};
 
 // Page markers like "[123]" are kept in the scraped text so the reader can show the
 // original book's pagination — split them out at render time into small "[Page N]"

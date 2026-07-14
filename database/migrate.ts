@@ -33,10 +33,12 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
     await db.execAsync('DROP TABLE IF EXISTS bible');
   }
 
-  // sabbath_quarters gained a composite id (lang/edition support) — old rows are just a
-  // re-downloadable cache, so drop and let it recreate rather than a fiddly ALTER.
+  // sabbath_quarters gained a composite id (lang/edition support), then a cover image
+  // column — old rows are just a re-downloadable cache, so drop and let it recreate
+  // rather than a fiddly ALTER.
   const tableInfo = await db.getAllAsync<{ name: string }>('PRAGMA table_info(sabbath_quarters)');
-  if (tableInfo.length > 0 && !tableInfo.some((c) => c.name === 'lang')) {
+  const tableInfoNames = new Set(tableInfo.map((c) => c.name));
+  if (tableInfo.length > 0 && (!tableInfoNames.has('lang') || !tableInfoNames.has('cover'))) {
     await db.execAsync('DROP TABLE IF EXISTS sabbath_quarters');
   }
 

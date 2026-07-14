@@ -10,6 +10,7 @@ export type ReminderType =
   | 'bible_study'
   | 'devotional'
   | 'chapter_a_day'
+  | 'sabbath_school'
   | 'sabbath_prep'
   | 'sabbath';
 
@@ -87,6 +88,14 @@ export const REMINDER_DEFS: ReminderDef[] = [
     defaultValue: '06:00',
     title: 'Chapter a Day',
     body: "Today's chapter is ready — open the app to read it.",
+  },
+  {
+    type: 'sabbath_school',
+    label: "Sabbath School Lesson",
+    kind: 'time',
+    defaultValue: '09:00',
+    title: 'Sabbath School',
+    body: "Today's lesson is ready — open the app to study.",
   },
   {
     type: 'sabbath_prep',

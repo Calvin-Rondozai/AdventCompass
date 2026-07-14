@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { Modal, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { ArrowRight } from '@/components/ui/Icon';
+import { ArrowRight, ChevronDown } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { getVerseRange, Verse } from '@/database/bible';
 import { getLocalizedBookName } from '@/database/bookNames';
 import { useBibleTranslation } from '@/hooks/useBibleTranslation';
 import { PressableScale } from '@/components/ui/PressableScale';
+import { TranslationSheet } from '@/components/bible/TranslationSheet';
 import { Body, Heading, Label } from '@/components/ui/Typography';
 
 export type VerseRef = { book: string; chapter: number; verse: number; verseEnd?: number } | null;
@@ -20,8 +21,9 @@ export type VerseRef = { book: string; chapter: number; verse: number; verseEnd?
 export function VersePopup({ reference, onClose }: { reference: VerseRef; onClose: () => void }) {
   const theme = useTheme();
   const db = useSQLiteContext();
-  const { translation } = useBibleTranslation();
+  const { translation, setTranslation } = useBibleTranslation();
   const [verses, setVerses] = useState<Verse[]>([]);
+  const [showVersionSheet, setShowVersionSheet] = useState(false);
 
   useEffect(() => {
     if (!reference) {
@@ -45,10 +47,18 @@ export function VersePopup({ reference, onClose }: { reference: VerseRef; onClos
         >
           {reference && (
             <>
-              <Label style={{ color: theme.colors.primary }}>
-                {getLocalizedBookName(translation, reference.book)} {reference.chapter}:{reference.verse}
-                {reference.verseEnd ? `-${reference.verseEnd}` : ''}
-              </Label>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Label style={{ color: theme.colors.primary }}>
+                  {getLocalizedBookName(translation, reference.book)} {reference.chapter}:{reference.verse}
+                  {reference.verseEnd ? `-${reference.verseEnd}` : ''}
+                </Label>
+                <PressableScale onPress={() => setShowVersionSheet(true)} scaleTo={0.95}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                    <Label style={{ color: theme.colors.textMuted }}>{translation}</Label>
+                    <ChevronDown size={12} color={theme.colors.textMuted} />
+                  </View>
+                </PressableScale>
+              </View>
               {verses.length > 0 ? (
                 <Body style={{ fontFamily: theme.fontFamily.serifRegular, fontSize: theme.fontSize.md, lineHeight: theme.lineHeight.lg }}>
                   {verses.map((v) => v.text).join(' ')}
@@ -77,6 +87,12 @@ export function VersePopup({ reference, onClose }: { reference: VerseRef; onClos
           )}
         </Pressable>
       </Pressable>
+      <TranslationSheet
+        visible={showVersionSheet}
+        selected={translation}
+        onSelect={setTranslation}
+        onClose={() => setShowVersionSheet(false)}
+      />
     </Modal>
   );
 }

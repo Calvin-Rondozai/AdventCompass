@@ -23,7 +23,7 @@ function renderEntryText(text: string, linkColor: string, onPressRef: (ref: Vers
       <Body
         key={i}
         style={{ color: linkColor, textDecorationLine: 'underline' }}
-        onPress={() => onPressRef({ book: ref.book, chapter: ref.chapter, verse: ref.verse })}
+        onPress={() => onPressRef({ book: ref.book, chapter: ref.chapter, verse: ref.verse, verseEnd: ref.verseEnd })}
       >
         {ref.text}
       </Body>

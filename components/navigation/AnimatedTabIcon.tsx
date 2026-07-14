@@ -2,7 +2,7 @@ import React, { ComponentType, useEffect } from 'react';
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
-type IconComponent = ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+type IconComponent = ComponentType<{ size?: number; color?: string; strokeWidth?: number; fill?: string }>;
 
 type Props = {
   Icon: IconComponent;
@@ -26,7 +26,7 @@ export function AnimatedTabIcon({ Icon, focused, color, dotColor }: Props) {
   return (
     <View style={{ alignItems: 'center', justifyContent: 'center', gap: 4 }}>
       <Animated.View style={iconStyle}>
-        <Icon size={24} color={color} strokeWidth={focused ? 2.4 : 2} />
+        <Icon size={24} color={color} strokeWidth={focused ? 2.4 : 2} fill={focused ? color : 'transparent'} />
       </Animated.View>
       <Animated.View
         style={[{ width: 4, height: 4, borderRadius: 2, backgroundColor: dotColor }, dotStyle]}

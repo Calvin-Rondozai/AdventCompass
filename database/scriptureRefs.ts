@@ -78,9 +78,20 @@ const BOOK_NAME_PATTERN =
   'Zech(?:ariah)?|Mal(?:achi)?|Matt(?:hew)?|Mark|Luke|John|Acts|Rom(?:ans)?|Gal(?:atians)?|Eph(?:esians)?|' +
   'Phil(?:ippians)?|Col(?:ossians)?|Titus|Philem(?:on)?|Heb(?:rews)?|James|Jas|Jude|Rev(?:elation)?)';
 
-const REF_REGEX = new RegExp(`\\b(${BOOK_NAME_PATTERN})\\.?\\s+(\\d{1,3}):(\\d{1,3})(?:[-,]\\s?\\d{1,3})*`, 'gi');
+// Range dashes in published lesson text are typographic ("Acts 17:16–34" uses an en dash,
+// not a hyphen) — accept hyphen, en dash, and em dash so a verse range's end isn't silently
+// dropped, which would otherwise leave the reference pointing at only its first verse.
+const REF_REGEX = new RegExp(`\\b(${BOOK_NAME_PATTERN})\\.?\\s+(\\d{1,3}):(\\d{1,3})(?:[-–—](\\d{1,3}))?(?:,\\s?\\d{1,3})*`, 'gi');
 
-export type ScriptureRefMatch = { text: string; start: number; end: number; book: string; chapter: number; verse: number };
+export type ScriptureRefMatch = {
+  text: string;
+  start: number;
+  end: number;
+  book: string;
+  chapter: number;
+  verse: number;
+  verseEnd?: number;
+};
 
 export function findScriptureRefs(text: string): ScriptureRefMatch[] {
   const matches: ScriptureRefMatch[] = [];
@@ -97,6 +108,7 @@ export function findScriptureRefs(text: string): ScriptureRefMatch[] {
       book,
       chapter: Number(m[2]),
       verse: Number(m[3]),
+      verseEnd: m[4] ? Number(m[4]) : undefined,
     });
   }
   return matches;

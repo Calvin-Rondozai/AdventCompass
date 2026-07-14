@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export type SabbathBlock = { type: 'heading' | 'quote' | 'paragraph'; text: string };
+export type SabbathBlock = { type: 'heading' | 'quote' | 'paragraph' | 'question'; text: string };
 export type SabbathDay = { day: number; title: string; date: string; blocks: SabbathBlock[] };
 export type SabbathLesson = { week: number; title: string; startDate: string; days: SabbathDay[] };
 export type SabbathQuarterData = {
@@ -13,6 +13,7 @@ export type SabbathQuarterData = {
   humanDate: string;
   startDate: string;
   endDate: string;
+  cover: string | null;
   lessons: SabbathLesson[];
 };
 
@@ -26,6 +27,7 @@ export type SabbathQuarterRow = {
   human_date: string;
   start_date: string;
   end_date: string;
+  cover: string | null;
   downloaded_at: string;
 };
 
@@ -45,7 +47,7 @@ export function quarterVariantId(lang: string, code: string, edition: string): s
 
 export async function getDownloadedQuarters(db: SQLiteDatabase): Promise<SabbathQuarterRow[]> {
   return db.getAllAsync<SabbathQuarterRow>(
-    'SELECT id, code, lang, edition, title, description, human_date, start_date, end_date, downloaded_at FROM sabbath_quarters ORDER BY code DESC'
+    'SELECT id, code, lang, edition, title, description, human_date, start_date, end_date, cover, downloaded_at FROM sabbath_quarters ORDER BY code DESC'
   );
 }
 
@@ -62,11 +64,11 @@ export async function getQuarterData(db: SQLiteDatabase, id: string): Promise<Sa
 
 export async function saveQuarter(db: SQLiteDatabase, quarter: SabbathQuarterData): Promise<void> {
   await db.runAsync(
-    `INSERT INTO sabbath_quarters (id, code, lang, edition, title, description, human_date, start_date, end_date, data, downloaded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO sabbath_quarters (id, code, lang, edition, title, description, human_date, start_date, end_date, cover, data, downloaded_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        title = excluded.title, description = excluded.description, human_date = excluded.human_date,
-       start_date = excluded.start_date, end_date = excluded.end_date, data = excluded.data,
+       start_date = excluded.start_date, end_date = excluded.end_date, cover = excluded.cover, data = excluded.data,
        downloaded_at = excluded.downloaded_at`,
     quarter.id,
     quarter.code,
@@ -77,6 +79,7 @@ export async function saveQuarter(db: SQLiteDatabase, quarter: SabbathQuarterDat
     quarter.humanDate,
     quarter.startDate,
     quarter.endDate,
+    quarter.cover,
     JSON.stringify(quarter),
     new Date().toISOString()
   );
@@ -93,11 +96,18 @@ function parseSourceDate(s: string): number {
   return Date.UTC(y, m - 1, d);
 }
 
-export type TodaysLesson = { quarterId: string; quarterTitle: string; week: number; lessonTitle: string };
+export type TodaysLesson = {
+  quarterId: string;
+  quarterTitle: string;
+  week: number;
+  lessonTitle: string;
+  day: number;
+  dayTitle: string;
+};
 
-// The lesson whose Sabbath (day 1) date is the most recent one on or before today,
-// checked across every downloaded quarter/language/edition on the device — first
-// preference goes to the standard English one if more than one qualifies.
+// The specific day (Sabbath..Friday) whose exact date is the most recent one on or before
+// today, checked across every downloaded quarter/language/edition on the device — day-level
+// dates are exact in the source data, unlike a lesson's nominal start date.
 export async function getTodaysLesson(db: SQLiteDatabase, date: Date = new Date()): Promise<TodaysLesson | null> {
   const todayUTC = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
   const rows = await getDownloadedQuarters(db);
@@ -108,11 +118,20 @@ export async function getTodaysLesson(db: SQLiteDatabase, date: Date = new Date(
     const quarter = await getQuarterData(db, row.id);
     if (!quarter) continue;
     for (const lesson of quarter.lessons) {
-      const t = parseSourceDate(lesson.startDate);
-      if (Number.isNaN(t) || t > todayUTC) continue;
-      if (t > bestTime) {
-        bestTime = t;
-        best = { quarterId: quarter.id, quarterTitle: quarter.title, week: lesson.week, lessonTitle: lesson.title };
+      for (const day of lesson.days) {
+        const t = parseSourceDate(day.date);
+        if (Number.isNaN(t) || t > todayUTC) continue;
+        if (t > bestTime) {
+          bestTime = t;
+          best = {
+            quarterId: quarter.id,
+            quarterTitle: quarter.title,
+            week: lesson.week,
+            lessonTitle: lesson.title,
+            day: day.day,
+            dayTitle: day.title,
+          };
+        }
       }
     }
   }

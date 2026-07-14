@@ -40,6 +40,26 @@ export function stringifyChecklist(items: ChecklistItem[]): string | null {
   return items.length ? JSON.stringify(items) : null;
 }
 
+// A checklist normally renders above the note body. This marker (Unicode Private Use Area
+// codepoints, never produced by typing) can be embedded as its own paragraph inside
+// `content` to say "the checklist goes here instead". Absent from every note written
+// before repositioning existed, so old notes keep rendering the checklist above the body
+// exactly as before.
+export const CHECKLIST_MARKER = '';
+
+export function splitContentAtChecklist(content: string): { before: string; after: string } {
+  const idx = content.indexOf(CHECKLIST_MARKER);
+  if (idx === -1) return { before: '', after: content };
+  return {
+    before: content.slice(0, idx).replace(/\n+$/, ''),
+    after: content.slice(idx + CHECKLIST_MARKER.length).replace(/^\n+/, ''),
+  };
+}
+
+export function joinContentAroundChecklist(before: string, after: string): string {
+  return [before, CHECKLIST_MARKER, after].filter((s) => s.trim().length > 0).join('\n\n');
+}
+
 export function formatVerseRef(book: string, chapter: number, verse: number): string {
   return `${book} ${chapter}:${verse}`;
 }
@@ -153,4 +173,30 @@ export async function getVersesWithNotes(db: SQLiteDatabase, book: string, chapt
     if (!Number.isNaN(verseNumber)) verses.add(verseNumber);
   }
   return verses;
+}
+
+export type PendingChecklistItem = { noteId: number; noteTitle: string; item: ChecklistItem };
+
+// Powers the dashboard's checklist preview — the first few unchecked items across every
+// non-archived note that has a checklist, most-recent note first.
+export async function getPendingChecklistItems(db: SQLiteDatabase, limit = 5): Promise<PendingChecklistItem[]> {
+  const rows = await db.getAllAsync<Note>(
+    "SELECT * FROM notes WHERE archived = 0 AND checklist IS NOT NULL ORDER BY created_date DESC"
+  );
+  const out: PendingChecklistItem[] = [];
+  for (const row of rows) {
+    for (const item of parseChecklist(row.checklist)) {
+      if (item.done) continue;
+      out.push({ noteId: row.id, noteTitle: row.title || 'Untitled', item });
+      if (out.length >= limit) return out;
+    }
+  }
+  return out;
+}
+
+export async function toggleChecklistItem(db: SQLiteDatabase, noteId: number, itemId: string): Promise<void> {
+  const note = await getNote(db, noteId);
+  if (!note) return;
+  const items = parseChecklist(note.checklist).map((it) => (it.id === itemId ? { ...it, done: !it.done } : it));
+  await db.runAsync('UPDATE notes SET checklist = ? WHERE id = ?', stringifyChecklist(items), noteId);
 }

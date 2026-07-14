@@ -183,29 +183,18 @@ export default function HomeDashboard() {
               onPress={() =>
                 router.push({
                   pathname: '/more/sabbath-school/[id]/[week]',
-                  params: { id: todaysLesson.quarterId, week: String(todaysLesson.week) },
+                  params: { id: todaysLesson.quarterId, week: String(todaysLesson.week), day: String(todaysLesson.day) },
                 })
               }
               scaleTo={0.98}
             >
-              <AnimatedCard delay={130} style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: theme.radius.md,
-                    backgroundColor: theme.colors.accentSoft,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <BookOpen size={20} color={theme.colors.accent} strokeWidth={1.75} />
+              <AnimatedCard delay={130}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: theme.spacing.sm }}>
+                  <BookOpen size={16} color={theme.colors.accent} strokeWidth={2} />
+                  <Label style={{ color: theme.colors.accent }}>Sabbath School — Lesson {todaysLesson.week}</Label>
                 </View>
-                <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
-                  <Label>Sabbath School — Lesson {todaysLesson.week}</Label>
-                  <Body style={{ fontFamily: theme.fontFamily.sansSemiBold, marginTop: 2 }}>{todaysLesson.lessonTitle}</Body>
-                </View>
-                <ChevronRight size={18} color={theme.colors.textFaint} />
+                <Heading style={{ fontSize: theme.fontSize.lg }}>{todaysLesson.dayTitle}</Heading>
+                <Body style={{ color: theme.colors.textMuted, marginTop: theme.spacing.sm }}>{todaysLesson.lessonTitle}</Body>
               </AnimatedCard>
             </PressableScale>
           )}

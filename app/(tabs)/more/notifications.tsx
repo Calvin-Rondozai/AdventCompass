@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -13,6 +13,7 @@ import {
   notificationsAvailable,
   scheduleReminderNotification,
 } from '@/services/notifications';
+import { showAlert } from '@/components/ui/AppAlert';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { AnimatedCard } from '@/components/ui/AnimatedCard';
 import { Body, Heading, Label } from '@/components/ui/Typography';
@@ -55,7 +56,7 @@ export default function NotificationsScreen() {
   const handleToggle = async (type: ReminderType, nextEnabled: boolean, time: string) => {
     if (nextEnabled) {
       if (!notificationsAvailable) {
-        Alert.alert(
+        showAlert(
           'Development build required',
           'Reminders need a development build — Expo Go no longer supports scheduled notifications on Android as of SDK 53. This will work once the app is installed as a standalone/dev build.'
         );
@@ -63,7 +64,7 @@ export default function NotificationsScreen() {
       }
       const granted = await ensureNotificationSetup();
       if (!granted) {
-        Alert.alert(
+        showAlert(
           'Notifications disabled',
           'Enable notifications for this app in your device settings to use reminders.'
         );

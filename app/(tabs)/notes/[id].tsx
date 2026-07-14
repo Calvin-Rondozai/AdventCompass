@@ -1,9 +1,22 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { Bell, Check, CheckCircle2, Pin, Archive, Trash2, Minus, MoreHorizontal, Plus, X } from '@/components/ui/Icon';
+import {
+  Bell,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Pin,
+  Archive,
+  Trash2,
+  Minus,
+  MoreHorizontal,
+  Plus,
+  X,
+} from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import {
@@ -11,11 +24,13 @@ import {
   createNote,
   deleteNote,
   getNote,
+  joinContentAroundChecklist,
   Note,
   NOTE_CATEGORIES,
   NoteCategory,
   parseChecklist,
   setNoteReminder,
+  splitContentAtChecklist,
   toggleNoteArchived,
   toggleNotePinned,
   updateNote,
@@ -27,11 +42,13 @@ import {
   refreshPrayerReminders,
   scheduleNoteReminder,
 } from '@/services/notifications';
+import { showAlert } from '@/components/ui/AppAlert';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body, Label } from '@/components/ui/Typography';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const newChecklistId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const splitParagraphs = (text: string) => text.split(/\n\n+/).filter((p) => p.trim().length > 0);
 
 export default function NoteEditorScreen() {
   const theme = useTheme();
@@ -43,7 +60,11 @@ export default function NoteEditorScreen() {
   const [existing, setExisting] = useState<Note | null>(null);
   const [loaded, setLoaded] = useState(isNew);
   const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
+  // The note body is split around the checklist so it can be repositioned — everything
+  // before it and everything after are separate fields; joined back into one `content`
+  // string (with an invisible marker at the split point) only when persisting.
+  const [contentBefore, setContentBefore] = useState('');
+  const [contentAfter, setContentAfter] = useState('');
   const [category, setCategory] = useState<NoteCategory>((params.category as NoteCategory) || 'personal');
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [reminderEnabled, setReminderEnabled] = useState(false);
@@ -58,7 +79,9 @@ export default function NoteEditorScreen() {
       if (!note) return;
       setExisting(note);
       setTitle(note.title);
-      setContent(note.content);
+      const { before, after } = splitContentAtChecklist(note.content);
+      setContentBefore(before);
+      setContentAfter(after);
       setCategory(note.category);
       setChecklist(parseChecklist(note.checklist));
       setReminderEnabled(!!note.reminder_enabled);
@@ -70,6 +93,21 @@ export default function NoteEditorScreen() {
       setLoaded(true);
     });
   }, [db, isNew, params.id]);
+
+  const moveChecklistUp = () => {
+    const beforeParas = splitParagraphs(contentBefore);
+    if (beforeParas.length === 0) return;
+    const moved = beforeParas.pop()!;
+    setContentBefore(beforeParas.join('\n\n'));
+    setContentAfter([moved, contentAfter].filter((s) => s.trim()).join('\n\n'));
+  };
+  const moveChecklistDown = () => {
+    const afterParas = splitParagraphs(contentAfter);
+    if (afterParas.length === 0) return;
+    const moved = afterParas.shift()!;
+    setContentAfter(afterParas.join('\n\n'));
+    setContentBefore([contentBefore, moved].filter((s) => s.trim()).join('\n\n'));
+  };
 
   // Persist to whichever row already exists (creating it on first content, the same
   // way it'll be finalized on close) so nothing is lost if the note is backgrounded or
@@ -101,22 +139,44 @@ export default function NoteEditorScreen() {
   const autosaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
     if (!loaded) return;
-    if (!title.trim() && !content.trim() && checklist.length === 0 && !existing) return;
+    if (!title.trim() && !contentBefore.trim() && !contentAfter.trim() && checklist.length === 0 && !existing) return;
     clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(() => {
-      persist({ title, content, category, checklist });
+      persist({ title, content: joinContentAroundChecklist(contentBefore, contentAfter), category, checklist });
     }, 700);
     return () => clearTimeout(autosaveTimer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, content, category, checklist, loaded]);
+  }, [title, contentBefore, contentAfter, category, checklist, loaded]);
+
+  // Refs mirror the latest state/persist fn so the unmount effect below (which only runs
+  // once, on the way out) always flushes whatever was last typed — even if it fires
+  // inside the 700ms debounce window, e.g. a quick back-navigation or modal swipe-dismiss.
+  const latestRef = useRef({ title, contentBefore, contentAfter, category, checklist });
+  latestRef.current = { title, contentBefore, contentAfter, category, checklist };
+  const persistRef = useRef(persist);
+  persistRef.current = persist;
+  useEffect(() => {
+    return () => {
+      clearTimeout(autosaveTimer.current);
+      const data = latestRef.current;
+      if (data.title.trim() || data.contentBefore.trim() || data.contentAfter.trim() || data.checklist.length > 0) {
+        persistRef.current({
+          title: data.title,
+          content: joinContentAroundChecklist(data.contentBefore, data.contentAfter),
+          category: data.category,
+          checklist: data.checklist,
+        });
+      }
+    };
+  }, []);
 
   const handleSave = useCallback(async () => {
     clearTimeout(autosaveTimer.current);
-    if (!title.trim() && !content.trim() && checklist.length === 0) {
+    if (!title.trim() && !contentBefore.trim() && !contentAfter.trim() && checklist.length === 0) {
       router.back();
       return;
     }
-    await persist({ title, content, category, checklist });
+    await persist({ title, content: joinContentAroundChecklist(contentBefore, contentAfter), category, checklist });
     const noteId = existing?.id ?? null;
     if (category === 'prayer' || existing?.category === 'prayer') refreshPrayerReminders(db).catch(() => {});
 
@@ -125,7 +185,7 @@ export default function NoteEditorScreen() {
       await setNoteReminder(db, noteId, reminderEnabled ? reminderTime : null, reminderEnabled);
       if (reminderEnabled) {
         if (!notificationsAvailable) {
-          Alert.alert(
+          showAlert(
             'Development build required',
             'Note reminders need a development build — this will work once the app is installed as a dev/standalone build.'
           );
@@ -138,7 +198,7 @@ export default function NoteEditorScreen() {
       }
     }
     router.back();
-  }, [db, existing, title, content, category, checklist, persist, reminderEnabled, reminderHour, reminderMinute]);
+  }, [db, existing, title, contentBefore, contentAfter, category, checklist, persist, reminderEnabled, reminderHour, reminderMinute]);
 
   const handleDelete = useCallback(async () => {
     if (existing) {
@@ -276,54 +336,92 @@ export default function NoteEditorScreen() {
           )}
         </View>
 
-        <View
+        <TextInput
+          value={contentBefore}
+          onChangeText={setContentBefore}
+          placeholder="Write text above the checklist… (optional)"
+          placeholderTextColor={theme.colors.textFaint}
+          multiline
+          textAlignVertical="top"
           style={{
-            backgroundColor: theme.colors.surfaceMuted,
-            borderRadius: theme.radius.md,
-            padding: theme.spacing.sm + 2,
-            gap: theme.spacing.xs,
+            fontFamily: theme.fontFamily.sansRegular,
+            fontSize: theme.fontSize.base,
+            lineHeight: theme.lineHeight.base,
+            color: theme.colors.text,
+            minHeight: 44,
           }}
-        >
-          {checklist.map((item) => (
-            <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <PressableScale onPress={() => toggleChecklistDone(item.id)} style={{ padding: theme.spacing.xs }}>
-                <CheckCircle2
-                  size={20}
-                  color={item.done ? theme.colors.primary : theme.colors.textFaint}
-                  fill={item.done ? theme.colors.primary : 'transparent'}
-                />
-              </PressableScale>
-              <TextInput
-                value={item.text}
-                onChangeText={(text) => updateChecklistText(item.id, text)}
-                placeholder="List item"
-                placeholderTextColor={theme.colors.textFaint}
-                style={{
-                  flex: 1,
-                  fontFamily: theme.fontFamily.sansRegular,
-                  fontSize: theme.fontSize.base,
-                  color: item.done ? theme.colors.textFaint : theme.colors.text,
-                  textDecorationLine: item.done ? 'line-through' : 'none',
-                }}
-              />
-              <PressableScale onPress={() => removeChecklistItem(item.id)} style={{ padding: theme.spacing.xs }}>
-                <X size={16} color={theme.colors.textFaint} />
-              </PressableScale>
+        />
+
+        {checklist.length > 0 ? (
+          <View
+            style={{
+              backgroundColor: theme.colors.surfaceMuted,
+              borderRadius: theme.radius.md,
+              padding: theme.spacing.sm + 2,
+              gap: theme.spacing.xs,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Label>Checklist</Label>
+              <View style={{ flexDirection: 'row' }}>
+                <PressableScale onPress={moveChecklistUp} style={{ padding: theme.spacing.xs }} scaleTo={0.85}>
+                  <ChevronUp size={16} color={theme.colors.textMuted} />
+                </PressableScale>
+                <PressableScale onPress={moveChecklistDown} style={{ padding: theme.spacing.xs }} scaleTo={0.85}>
+                  <ChevronDown size={16} color={theme.colors.textMuted} />
+                </PressableScale>
+              </View>
             </View>
-          ))}
+            {checklist.map((item) => (
+              <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <PressableScale onPress={() => toggleChecklistDone(item.id)} style={{ padding: theme.spacing.xs }}>
+                  <CheckCircle2
+                    size={20}
+                    color={item.done ? theme.colors.primary : theme.colors.textFaint}
+                    fill={item.done ? theme.colors.primary : 'transparent'}
+                  />
+                </PressableScale>
+                <TextInput
+                  value={item.text}
+                  onChangeText={(text) => updateChecklistText(item.id, text)}
+                  placeholder="List item"
+                  placeholderTextColor={theme.colors.textFaint}
+                  style={{
+                    flex: 1,
+                    fontFamily: theme.fontFamily.sansRegular,
+                    fontSize: theme.fontSize.base,
+                    color: item.done ? theme.colors.textFaint : theme.colors.text,
+                    textDecorationLine: item.done ? 'line-through' : 'none',
+                  }}
+                />
+                <PressableScale onPress={() => removeChecklistItem(item.id)} style={{ padding: theme.spacing.xs }}>
+                  <X size={16} color={theme.colors.textFaint} />
+                </PressableScale>
+              </View>
+            ))}
+            <PressableScale onPress={addChecklistItem} scaleTo={0.98}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', padding: theme.spacing.xs }}>
+                <Plus size={18} color={theme.colors.primary} strokeWidth={2} />
+                <Body style={{ marginLeft: theme.spacing.xs, color: theme.colors.primary, fontFamily: theme.fontFamily.sansMedium }}>
+                  Add checklist item
+                </Body>
+              </View>
+            </PressableScale>
+          </View>
+        ) : (
           <PressableScale onPress={addChecklistItem} scaleTo={0.98}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', padding: theme.spacing.xs }}>
-              <Plus size={18} color={theme.colors.primary} strokeWidth={2} />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <CheckCircle2 size={18} color={theme.colors.primary} strokeWidth={1.75} />
               <Body style={{ marginLeft: theme.spacing.xs, color: theme.colors.primary, fontFamily: theme.fontFamily.sansMedium }}>
-                Add checklist item
+                Add checklist
               </Body>
             </View>
           </PressableScale>
-        </View>
+        )}
 
         <TextInput
-          value={content}
-          onChangeText={setContent}
+          value={contentAfter}
+          onChangeText={setContentAfter}
           placeholder="Write your note…"
           placeholderTextColor={theme.colors.textFaint}
           multiline
@@ -333,7 +431,7 @@ export default function NoteEditorScreen() {
             fontSize: theme.fontSize.base,
             lineHeight: theme.lineHeight.base,
             color: theme.colors.text,
-            minHeight: 200,
+            minHeight: 160,
           }}
         />
       </ScrollView>
@@ -379,7 +477,9 @@ export default function NoteEditorScreen() {
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', padding: theme.spacing.md }}>
                 <Archive size={20} color={theme.colors.text} strokeWidth={1.75} />
-                <Body style={{ marginLeft: theme.spacing.sm, fontFamily: theme.fontFamily.sansMedium }}>Archive</Body>
+                <Body style={{ marginLeft: theme.spacing.sm, fontFamily: theme.fontFamily.sansMedium }}>
+                  {existing?.archived ? 'Unarchive' : 'Archive'}
+                </Body>
               </View>
             </PressableScale>
             <PressableScale

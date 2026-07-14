@@ -23,6 +23,8 @@ import { ThemeProvider } from '@/theme/ThemeProvider';
 import { DATABASE_NAME, migrateDbIfNeeded } from '@/database/migrate';
 import { TabBarVisibilityProvider } from '@/hooks/useTabBarVisibility';
 import { syncSabbathSchool } from '@/services/sabbathSchoolSync';
+import { refreshSabbathSchoolReminder } from '@/services/notifications';
+import { AppAlertHost } from '@/components/ui/AppAlert';
 // Registers the foreground notification handler on every launch — reminders are
 // scheduled with the OS and survive restarts, but this in-memory handler config
 // (how a notification behaves while the app is open) must be set up each session.
@@ -95,7 +97,9 @@ function RootReady({ onReady }: { onReady: () => void }) {
       const now = Date.now();
       if (now - lastAttempt.current < 60_000) return; // debounce rapid foreground flapping
       lastAttempt.current = now;
-      syncSabbathSchool(db).catch(() => {});
+      syncSabbathSchool(db)
+        .then(() => refreshSabbathSchoolReminder(db))
+        .catch(() => {});
     };
     trySync();
     const sub = AppState.addEventListener('change', (state) => {
@@ -105,9 +109,12 @@ function RootReady({ onReady }: { onReady: () => void }) {
   }, [db]);
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="+not-found" />
-    </Stack>
+    <>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="+not-found" />
+      </Stack>
+      <AppAlertHost />
+    </>
   );
 }
