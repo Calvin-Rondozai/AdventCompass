@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, LogBox } from 'react-native';
-import { Stack } from 'expo-router';
+import { Redirect, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { getKv } from '@/database/kv';
+import { BrandedSplash } from '@/components/ui/BrandedSplash';
 
 // moti re-exports a SafeAreaView from its own bundle that internally imports the
 // deprecated React Native one — the warning fires just from moti being loaded, not
@@ -45,16 +47,19 @@ export default function RootLayout() {
     Raleway_700Bold,
   });
   const [dbReady, setDbReady] = useState(false);
-
-  const onLayoutRootView = useCallback(async () => {
-    if (fontsLoaded && dbReady) {
-      await SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, dbReady]);
+  const [showBrandedSplash, setShowBrandedSplash] = useState(true);
 
   useEffect(() => {
-    onLayoutRootView();
-  }, [onLayoutRootView]);
+    if (fontsLoaded && dbReady) {
+      SplashScreen.hideAsync()
+        .catch(() => {})
+        .then(() => {
+          // Native splash can't show text — hold our own matching screen (with "Powered
+          // by Hello C") up for a beat right as it hides, then reveal the real app.
+          setTimeout(() => setShowBrandedSplash(false), 700);
+        });
+    }
+  }, [fontsLoaded, dbReady]);
 
   if (!fontsLoaded) return null;
 
@@ -73,6 +78,7 @@ export default function RootLayout() {
           </ThemeProvider>
         </SQLiteProvider>
       </SafeAreaProvider>
+      {showBrandedSplash && <BrandedSplash />}
     </GestureHandlerRootView>
   );
 }
@@ -80,10 +86,17 @@ export default function RootLayout() {
 function RootReady({ onReady }: { onReady: () => void }) {
   const db = useSQLiteContext();
   const lastAttempt = useRef(0);
+  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
 
   useEffect(() => {
-    onReady();
-  }, [onReady]);
+    getKv(db, 'onboarding_complete').then((v) => {
+      setNeedsOnboarding(v !== '1');
+    });
+  }, [db]);
+
+  useEffect(() => {
+    if (needsOnboarding !== null) onReady();
+  }, [needsOnboarding, onReady]);
 
   // "Sync whenever it connects to the internet" without a native background-fetch
   // module (which needs a dev build we don't have working yet — see the reminders/
@@ -112,8 +125,10 @@ function RootReady({ onReady }: { onReady: () => void }) {
     <>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="onboarding" />
         <Stack.Screen name="+not-found" />
       </Stack>
+      {needsOnboarding && <Redirect href="/onboarding" />}
       <AppAlertHost />
     </>
   );

@@ -270,8 +270,6 @@ export default function AIAssistantScreen() {
             padding: theme.spacing.lg,
             paddingTop: theme.spacing.sm,
             gap: theme.spacing.sm,
-            borderTopWidth: 1,
-            borderTopColor: theme.colors.border,
           }}
         >
           <TextInput

@@ -1,8 +1,8 @@
 import React from 'react';
-import { Linking, View } from 'react-native';
+import { Image, Linking, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
-import { BookHeart, ChevronRight, Mail, User } from '@/components/ui/Icon';
+import { ChevronRight, Mail, User } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -26,20 +26,11 @@ export default function AboutScreen() {
       <View style={{ flex: 1, padding: theme.spacing.lg, justifyContent: 'space-between' }}>
         <View style={{ gap: theme.spacing.lg }}>
           <View style={{ alignItems: 'center', marginTop: theme.spacing.xl }}>
-            <View
-              style={{
-                width: 72,
-                height: 72,
-                borderRadius: theme.radius.lg,
-                backgroundColor: theme.colors.primarySoft,
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: theme.spacing.md,
-                ...theme.shadow.floating,
-              }}
-            >
-              <BookHeart size={32} color={theme.colors.primary} strokeWidth={1.75} />
-            </View>
+            <Image
+              source={require('@/assets/ico.png')}
+              resizeMode="contain"
+              style={{ width: 100, height: 100, marginBottom: theme.spacing.md }}
+            />
             <Heading style={{ fontSize: theme.fontSize.xl }}>AdventCompass</Heading>
             <Label style={{ marginTop: 4 }}>Version {version}</Label>
           </View>

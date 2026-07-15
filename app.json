@@ -15,10 +15,8 @@
     "android": {
       "package": "com.maranathaone.app",
       "adaptiveIcon": {
-        "backgroundColor": "#1B0F33",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#173347",
+        "foregroundImage": "./assets/ico.png"
       },
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "resize"
@@ -37,9 +35,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#1B0F33",
-          "image": "./assets/icon.png",
-          "imageWidth": 120
+          "backgroundColor": "#173347",
+          "image": "./assets/ico.png",
+          "imageWidth": 160
         }
       ],
       [
@@ -48,7 +46,8 @@
           "icon": "./assets/icon.png",
           "color": "#7C3AED"
         }
-      ]
+      ],
+      "llama.rn"
     ],
     "experiments": {
       "typedRoutes": true
