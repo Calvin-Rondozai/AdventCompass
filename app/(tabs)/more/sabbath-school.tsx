@@ -163,7 +163,7 @@ export default function SabbathSchoolScreen() {
     setSyncing(false);
     refresh();
     if (!result.synced) {
-      showAlert('Up to date', 'No new quarter to download right now — check your connection or try again later.');
+      showAlert('Up to date', 'No new quarter to download right now. Check your connection or try again later.');
     }
   };
 
@@ -175,7 +175,7 @@ export default function SabbathSchoolScreen() {
     setSyncing(false);
     refresh();
     if (!result.synced) {
-      showAlert('Not available', "That language/edition isn't available yet — check your connection or try again later.");
+      showAlert('Not available', "That language/edition isn't available yet. Check your connection or try again later.");
     } else {
       setSettingsVisible(false);
     }

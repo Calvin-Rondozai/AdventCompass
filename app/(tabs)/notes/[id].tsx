@@ -193,7 +193,7 @@ export default function NoteEditorScreen() {
         if (!notificationsAvailable) {
           showAlert(
             'Development build required',
-            'Note reminders need a development build — this will work once the app is installed as a dev/standalone build.'
+            'Note reminders need a development build. This will work once the app is installed as a dev/standalone build.'
           );
         } else {
           const granted = await ensureNotificationSetup();

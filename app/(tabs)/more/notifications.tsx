@@ -58,7 +58,7 @@ export default function NotificationsScreen() {
       if (!notificationsAvailable) {
         showAlert(
           'Development build required',
-          'Reminders need a development build — Expo Go no longer supports scheduled notifications on Android as of SDK 53. This will work once the app is installed as a standalone/dev build.'
+          'Reminders need a development build. Expo Go no longer supports scheduled notifications on Android as of SDK 53. This will work once the app is installed as a standalone/dev build.'
         );
         return;
       }
@@ -120,7 +120,7 @@ export default function NotificationsScreen() {
             }}
           >
             <Body style={{ fontSize: theme.fontSize.sm, color: theme.colors.onAccent }}>
-              Reminders need a development build — Expo Go no longer supports scheduled notifications on
+              Reminders need a development build. Expo Go no longer supports scheduled notifications on
               Android since SDK 53. You can still set times below; they'll start working once this app runs
               as a dev/standalone build.
             </Body>

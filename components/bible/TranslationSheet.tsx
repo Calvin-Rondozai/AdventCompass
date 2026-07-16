@@ -56,7 +56,7 @@ export function TranslationSheet({ visible, selected, onSelect, onClose }: Props
                 >
                   <View style={{ flex: 1 }}>
                     <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>
-                      {item.code} — {item.name}
+                      {item.code}: {item.name}
                     </Body>
                     <Label style={{ marginTop: 4 }}>
                       {item.language} · {item.license}

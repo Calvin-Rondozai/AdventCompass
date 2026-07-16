@@ -9,7 +9,7 @@ export type OffertoryReference = {
 export const OFFERTORY_REFERENCES: OffertoryReference[] = [
   {
     book: 'Leviticus', chapter: 22, verseStart: 29,
-    comment: 'An offering brought "at your own will" is to be given willingly, not grudgingly — the attitude of the giver matters as much to God as the gift itself.',
+    comment: 'An offering brought "at your own will" is to be given willingly, not grudgingly, the attitude of the giver matters as much to God as the gift itself.',
   },
   {
     book: 'Deuteronomy', chapter: 16, verseStart: 17,
@@ -17,31 +17,31 @@ export const OFFERTORY_REFERENCES: OffertoryReference[] = [
   },
   {
     book: 'Psalms', chapter: 24, verseStart: 1,
-    comment: 'Before any appeal for giving comes this foundation: everything already belongs to God. What we return in tithes and offerings was never fully ours to begin with — we are stewards, not owners.',
+    comment: 'Before any appeal for giving comes this foundation: everything already belongs to God. What we return in tithes and offerings was never fully ours to begin with; we are stewards, not owners.',
   },
   {
     book: 'Psalms', chapter: 96, verseStart: 7,
-    comment: 'Bringing an offering is placed alongside ascribing God glory and strength — giving is an act of worship, not merely a financial transaction.',
+    comment: 'Bringing an offering is placed alongside ascribing God glory and strength; giving is an act of worship, not merely a financial transaction.',
   },
   {
     book: 'Proverbs', chapter: 29, verseStart: 18,
-    comment: 'Where there is no vision — no clear sense of God\'s mission — people (and their giving) drift. Supporting the church\'s work keeps that vision, and our part in it, alive.',
+    comment: 'Where there is no vision (no clear sense of God\'s mission), people (and their giving) drift. Supporting the church\'s work keeps that vision, and our part in it, alive.',
   },
   {
     book: 'Proverbs', chapter: 3, verseStart: 9, verseEnd: 10,
-    comment: 'Honoring God with the "firstfruits," not the leftovers, reverses the usual order — God is provided for first, and the promise attached is abundance, not lack.',
+    comment: 'Honoring God with the "firstfruits," not the leftovers, reverses the usual order; God is provided for first, and the promise attached is abundance, not lack.',
   },
   {
     book: 'Haggai', chapter: 2, verseStart: 8,
-    comment: '"The silver is Mine, and the gold is Mine" — a direct reminder that God does not need our money for His sake; He invites our giving for the sake of our own hearts and His work.',
+    comment: '"The silver is Mine, and the gold is Mine", a direct reminder that God does not need our money for His sake; He invites our giving for the sake of our own hearts and His work.',
   },
   {
     book: 'Malachi', chapter: 3, verseStart: 10,
-    comment: 'The only place in Scripture where God says "test Me" — tied specifically to bringing the whole tithe. Faithful giving is met with a promised blessing "poured out" beyond capacity to contain.',
+    comment: 'The only place in Scripture where God says "test Me", tied specifically to bringing the whole tithe. Faithful giving is met with a promised blessing "poured out" beyond capacity to contain.',
   },
   {
     book: 'Matthew', chapter: 6, verseStart: 20, verseEnd: 21,
-    comment: 'Treasure in heaven cannot rust or be stolen. Jesus ties the heart directly to where treasure is placed — giving toward God\'s work is one way of relocating the heart itself.',
+    comment: 'Treasure in heaven cannot rust or be stolen. Jesus ties the heart directly to where treasure is placed; giving toward God\'s work is one way of relocating the heart itself.',
   },
   {
     book: 'Luke', chapter: 21, verseStart: 3, verseEnd: 4,
@@ -53,7 +53,7 @@ export const OFFERTORY_REFERENCES: OffertoryReference[] = [
   },
   {
     book: '2 Corinthians', chapter: 9, verseStart: 7,
-    comment: 'Not "grudgingly, or of necessity" — the manner of giving matters as much as the measure. "God loves a cheerful giver," one who gives freely because the heart has already decided.',
+    comment: 'Not "grudgingly, or of necessity"; the manner of giving matters as much as the measure. "God loves a cheerful giver," one who gives freely because the heart has already decided.',
   },
   {
     book: '2 Corinthians', chapter: 8, verseStart: 12,
@@ -61,7 +61,7 @@ export const OFFERTORY_REFERENCES: OffertoryReference[] = [
   },
   {
     book: 'Ephesians', chapter: 2, verseStart: 10,
-    comment: 'We are God\'s "workmanship, created... for good works" — giving is one of the good works He has already prepared for us to walk in, part of the purpose of the new life in Christ.',
+    comment: 'We are God\'s "workmanship, created... for good works", giving is one of the good works He has already prepared for us to walk in, part of the purpose of the new life in Christ.',
   },
   {
     book: 'James', chapter: 1, verseStart: 17,
@@ -69,7 +69,7 @@ export const OFFERTORY_REFERENCES: OffertoryReference[] = [
   },
   {
     book: 'Psalms', chapter: 116, verseStart: 12,
-    comment: '"What shall I render to the Lord for all His benefits toward me?" Giving flows from gratitude for what God has already done — it is a response to grace, not a payment for it.',
+    comment: '"What shall I render to the Lord for all His benefits toward me?" Giving flows from gratitude for what God has already done; it is a response to grace, not a payment for it.',
   },
 ];
 

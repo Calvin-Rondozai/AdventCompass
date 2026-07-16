@@ -43,7 +43,7 @@ export const READING_PLANS: ReadingPlan[] = [
   {
     id: 'proverbs-31',
     title: 'Proverbs in a Month',
-    description: 'One chapter of Proverbs a day — wisdom for every day of the month.',
+    description: 'One chapter of Proverbs a day, wisdom for every day of the month.',
     days: buildSequentialPlan('Proverbs', 31, 31),
   },
 ];

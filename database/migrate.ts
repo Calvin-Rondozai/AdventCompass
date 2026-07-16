@@ -53,6 +53,19 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
     await db.execAsync('DROP TABLE IF EXISTS sabbath_quarters');
   }
 
+  // content_search's `title` column moved from UNINDEXED to indexed in schema v12 (so
+  // chapter/entry titles are actually searchable, not just body text). FTS5 has no
+  // ALTER for a column's indexed-ness, and CREATE VIRTUAL TABLE IF NOT EXISTS is a no-op
+  // against a table that already exists regardless of whether this SQL text changed —
+  // an install that already created the old shape needs an explicit drop to pick up the
+  // new one. Its rows are a fully rebuildable cache (database/searchIndex.ts), never
+  // user data, so this is safe the same way the sabbath_quarters drop above is.
+  const { user_version: versionBeforeMigration } =
+    (await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version')) ?? { user_version: 0 };
+  if (versionBeforeMigration < 12) {
+    await db.execAsync('DROP TABLE IF EXISTS content_search');
+  }
+
   await db.execAsync(CREATE_TABLES_SQL);
   await ensureNotesReminderColumns(db);
 

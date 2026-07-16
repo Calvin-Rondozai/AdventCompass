@@ -23,7 +23,7 @@ const FEATURES = [
 ];
 
 const AI_HIGHLIGHTS = [
-  { Icon: Sparkles, label: 'Ask Hello C anything — it answers from the Bible, EGW books, commentary, and hymns already in the app' },
+  { Icon: Sparkles, label: "Ask Hello C anything. It answers from the Bible, EGW books, commentary, and hymns already in the app" },
   { Icon: Library, label: 'Tap any verse to open matching SDA Bible Commentary' },
   { Icon: Link2, label: 'Follow cross-references to every related verse instantly' },
 ];
@@ -40,15 +40,17 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
-      <View style={{ flex: 1, padding: theme.spacing.lg, justifyContent: 'space-between' }}>
-        <View />
-
+      <View style={{ flex: 1, padding: theme.spacing.lg }}>
+        {/* justifyContent: 'center' here vertically centers whichever page is short enough to
+            need it (0 and 2) — page 1's list keeps its own flex: 1, which fills this space
+            completely and scrolls, so centering has no visible effect on it either way. */}
+        <View style={{ flex: 1, justifyContent: 'center' }}>
         {page === 0 && (
           <View style={{ alignItems: 'center', gap: theme.spacing.md }}>
             <Image source={require('@/assets/ico.png')} resizeMode="contain" style={{ width: 140, height: 140 }} />
             <Heading style={{ fontSize: theme.fontSize.xxl, textAlign: 'center' }}>Welcome to AdventCompass</Heading>
             <Body style={{ color: theme.colors.textMuted, textAlign: 'center', paddingHorizontal: theme.spacing.md }}>
-              Your offline companion for Bible study, Adventist resources, and daily devotion — everywhere you go,
+              Your offline companion for Bible study, Adventist resources, and daily devotion, everywhere you go,
               no connection needed.
             </Body>
           </View>
@@ -80,12 +82,12 @@ export default function OnboardingScreen() {
         )}
 
         {page === 2 && (
-          <View style={{ flex: 1, gap: theme.spacing.md }}>
+          <View style={{ gap: theme.spacing.lg }}>
             <Heading style={{ fontSize: theme.fontSize.xl, textAlign: 'center' }}>Verses, connected</Heading>
             <Body style={{ color: theme.colors.textMuted, textAlign: 'center', paddingHorizontal: theme.spacing.md }}>
               Every verse links out to what explains it further.
             </Body>
-            <ScrollView contentContainerStyle={{ gap: theme.spacing.md }} showsVerticalScrollIndicator={false}>
+            <View style={{ gap: theme.spacing.md }}>
               {AI_HIGHLIGHTS.map(({ Icon, label }) => (
                 <View key={label} style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <View
@@ -93,19 +95,20 @@ export default function OnboardingScreen() {
                       width: 34,
                       height: 34,
                       borderRadius: theme.radius.sm,
-                      backgroundColor: theme.colors.accentSoft,
+                      backgroundColor: theme.colors.primarySoft,
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
                   >
-                    <Icon size={17} color={theme.colors.accent} strokeWidth={1.75} />
+                    <Icon size={17} color={theme.colors.primary} strokeWidth={1.75} />
                   </View>
                   <Body style={{ flex: 1, marginLeft: theme.spacing.sm, fontSize: theme.fontSize.sm }}>{label}</Body>
                 </View>
               ))}
-            </ScrollView>
+            </View>
           </View>
         )}
+        </View>
 
         <View style={{ gap: theme.spacing.md }}>
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: theme.spacing.xs }}>

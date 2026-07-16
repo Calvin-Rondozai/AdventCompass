@@ -20,7 +20,7 @@ export default function TopicalVersesScreen() {
         contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}
         ListHeaderComponent={
           <Body style={{ color: theme.colors.textMuted, marginBottom: theme.spacing.md, fontSize: theme.fontSize.sm }}>
-            Pick how you're feeling or what you're facing — find Scripture that speaks to it.
+            Pick how you're feeling or what you're facing to find Scripture that speaks to it.
           </Body>
         }
         renderItem={({ item }) => (

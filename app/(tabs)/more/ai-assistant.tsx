@@ -8,7 +8,7 @@ import { Info, Sparkles, Download, ArrowUp } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { downloadModel, hasModel, DownloadProgress } from '@/services/aiModel';
-import { AI_INFERENCE_AVAILABLE, askAssistant, ChatMessage } from '@/services/aiAssistant';
+import { AI_INFERENCE_AVAILABLE, askAssistant, ChatMessage, resetConversation } from '@/services/aiAssistant';
 import { ensureSearchIndexBuilt } from '@/database/searchIndex';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body, Label } from '@/components/ui/Typography';
@@ -17,7 +17,7 @@ import { newLocalId } from '@/utils/localId';
 const GREETING: ChatMessage = {
   id: 'greeting',
   role: 'assistant',
-  text: "Hi! Ask me about a verse, a topic, or what the Bible or Ellen White's writings say — I'll always say exactly where an answer came from.",
+  text: "Hi! Ask me about a verse, a topic, or what the Bible or Ellen White's writings say. I'll always say exactly where an answer came from.",
 };
 
 function formatBytes(bytes: number): string {
@@ -124,6 +124,13 @@ export default function AIAssistantScreen() {
   const listRef = useRef<FlatList>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
+  // The visible chat log below always starts fresh on mount (just the greeting) — reset
+  // the model's conversation memory to match, so reopening this screen doesn't silently
+  // carry over context from a chat the user can no longer see.
+  useEffect(() => {
+    resetConversation();
+  }, []);
+
   // Indexing the app's content for search is a one-time cost (kept once built — see
   // ensureSearchIndexBuilt), but a real one: parsing every EGW book and commentary
   // volume takes a while on a phone. Running it here — right after the model is ready,
@@ -159,27 +166,16 @@ export default function AIAssistantScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
+      // headerTitleAlign is what actually centers this between the left and right edges —
+      // Android's Stack default is left-aligned next to the back button, so without this
+      // the title sits off-center regardless of how the component itself is styled.
+      headerTitleAlign: 'center',
       headerTitle: () => (
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: theme.radius.pill,
-              backgroundColor: theme.colors.accentSoft,
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginRight: theme.spacing.xs,
-            }}
-          >
-            <Sparkles size={16} color={theme.colors.accent} strokeWidth={2} />
-          </View>
-          <View style={{ alignItems: 'center' }}>
-            <Body style={{ fontFamily: theme.fontFamily.serifSemiBold, fontSize: theme.fontSize.md, textAlign: 'center' }}>
-              Hello C
-            </Body>
-            <Label style={{ fontSize: 10, letterSpacing: 0.5, textAlign: 'center' }}>BIBLE ASSISTANT</Label>
-          </View>
+        <View style={{ alignItems: 'center' }}>
+          <Body style={{ fontFamily: theme.fontFamily.serifSemiBold, fontSize: theme.fontSize.md, textAlign: 'center' }}>
+            Hello C
+          </Body>
+          <Label style={{ fontSize: 10, letterSpacing: 0.5, textAlign: 'center' }}>BIBLE ASSISTANT</Label>
         </View>
       ),
     });
@@ -226,7 +222,7 @@ export default function AIAssistantScreen() {
       console.error('AI assistant failed', error);
       setMessages((prev) => [
         ...prev,
-        { id: newLocalId(), role: 'assistant', text: 'Something went wrong answering that — please try again.', at: Date.now() },
+        { id: newLocalId(), role: 'assistant', text: 'Something went wrong answering that. Please try again.', at: Date.now() },
       ]);
     } finally {
       setSending(false);
@@ -251,7 +247,7 @@ export default function AIAssistantScreen() {
             <Info size={16} color={theme.colors.accent} strokeWidth={1.75} style={{ marginTop: 2 }} />
             <Body style={{ flex: 1, marginLeft: theme.spacing.xs, fontSize: theme.fontSize.sm, color: theme.colors.onAccent }}>
               {modelReady
-                ? "Model downloaded and ready. This banner stays until you're running a development build — Expo Go can't load the on-device model at all. Run npx expo prebuild then npx expo run:android (or run:ios) to install one."
+                ? "Model downloaded and ready. This banner stays until you're running a development build. Expo Go can't load the on-device model at all. Run npx expo prebuild then npx expo run:android (or run:ios) to install one."
                 : "Live answers need a development build (an on-device model, no internet at chat time). You can download the model now so it's ready the moment that build exists."}
             </Body>
           </View>

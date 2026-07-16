@@ -91,7 +91,7 @@ export function HymnNumberJump({ language, replaceNavigation }: Props) {
                 paddingVertical: theme.spacing.sm + 4,
               }}
             >
-              <Heading style={{ fontSize: theme.fontSize.xl }}>{numberInput || '—'}</Heading>
+              <Heading style={{ fontSize: theme.fontSize.xl }}>{numberInput || '·'}</Heading>
             </View>
             {error && (
               <Body style={{ color: theme.colors.danger, fontSize: theme.fontSize.sm }}>

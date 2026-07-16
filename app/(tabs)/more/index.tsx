@@ -34,7 +34,7 @@ const MENU = [
   { href: '/more/hymnal', Icon: Music, title: 'Hymnal', subtitle: 'English, chiShona & isiNdebele hymns' },
   { href: '/more/offertory', Icon: HandCoins, title: 'Offertory Reading', subtitle: 'Scripture readings for the offering' },
   { href: '/more/health', Icon: HeartPulse, title: 'Health & Wellness', subtitle: 'Exercise tracking' },
-  { href: '/more/topical-verses', Icon: Heart, title: 'Topical Verses', subtitle: 'Anxiety, grief, joy & more — verses that help' },
+  { href: '/more/topical-verses', Icon: Heart, title: 'Topical Verses', subtitle: 'Anxiety, grief, joy & more: verses that help' },
   { href: '/more/childrens-sermons', Icon: Gift, title: "Children's Sermons", subtitle: 'Object lessons for worship time' },
   { href: '/more/ai-assistant', Icon: Sparkles, title: 'AI Bible Assistant', subtitle: 'Explain verses & topics' },
   { href: '/more/settings', Icon: SettingsIcon, title: 'Settings', subtitle: 'Reminders & preferences' },

@@ -135,8 +135,8 @@ export default function EgwChapterReaderScreen() {
     const sorted = [...selected].sort((a, b) => a - b);
     const label =
       sorted.length > 1
-        ? `${book.title} — Ch. ${chapter.number} ¶${sorted[0] + 1}-${sorted[sorted.length - 1] + 1}`
-        : `${book.title} — Ch. ${chapter.number} ¶${sorted[0] + 1}`;
+        ? `${book.title}, Ch. ${chapter.number} ¶${sorted[0] + 1}-${sorted[sorted.length - 1] + 1}`
+        : `${book.title}, Ch. ${chapter.number} ¶${sorted[0] + 1}`;
     clearSelection();
     router.push({
       pathname: '/notes/[id]',

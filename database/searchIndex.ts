@@ -7,12 +7,12 @@ import { DEVOTIONALS } from './devotionals';
 
 export type SearchChunk = { text: string; source: string; ref: string; title: string };
 
-const INDEX_BUILT_KEY = 'search_index_built_v2';
+const INDEX_BUILT_KEY = 'search_index_built_v4';
 const INSERT_BATCH_SIZE = 400;
 const MIN_PARAGRAPH_LENGTH = 40;
 // Kept short — these get concatenated into the LLM prompt at answer time, and a
 // shorter prompt means less prefill time before the first token streams back.
-const MAX_CHUNK_LENGTH = 550;
+const MAX_CHUNK_LENGTH = 400;
 
 type Row = [text: string, source: string, ref: string, title: string];
 
@@ -53,7 +53,26 @@ function chunkText(text: string): string[] {
 // Builds the AI Assistant's full-text index once, ever, the first time it's needed —
 // most installs never open the AI tab, so this cost (parsing every EGW book and
 // commentary volume) doesn't belong in the app's normal startup migration path.
-export async function ensureSearchIndexBuilt(db: SQLiteDatabase, onProgress?: (label: string) => void): Promise<void> {
+//
+// This is called from two places that can race: the chat screen kicks it off proactively
+// as soon as the model's ready, and askAssistant() also calls it defensively before every
+// question in case that background build hasn't happened yet (or is still running). If a
+// question comes in while the first build is mid-flight, both calls saw the "not built
+// yet" KV flag and would each try to open their own db.withTransactionAsync — SQLite
+// can't nest transactions, and the second one fails with "cannot start a transaction
+// within a transaction". Caching the in-flight promise means a concurrent call just
+// awaits the same build instead of starting a second one.
+let indexingPromise: Promise<void> | null = null;
+
+export function ensureSearchIndexBuilt(db: SQLiteDatabase, onProgress?: (label: string) => void): Promise<void> {
+  if (indexingPromise) return indexingPromise;
+  indexingPromise = buildSearchIndex(db, onProgress).finally(() => {
+    indexingPromise = null;
+  });
+  return indexingPromise;
+}
+
+async function buildSearchIndex(db: SQLiteDatabase, onProgress?: (label: string) => void): Promise<void> {
   if ((await getKv(db, INDEX_BUILT_KEY)) === '1') return;
 
   const buffer: Row[] = [];
@@ -81,7 +100,7 @@ export async function ensureSearchIndexBuilt(db: SQLiteDatabase, onProgress?: (l
           chunk,
           'egw',
           `${code}|${chapter.number}|${idx}`,
-          `${title} — ${chapter.title}`,
+          `${title}: ${chapter.title}`,
         ]);
         await insertBatched(db, rows, buffer);
       }
@@ -143,6 +162,7 @@ const STOPWORDS = new Set([
 // on-device inference and gigabytes of vectors — not viable on a phone. This is the
 // cheap, static alternative: widen the query with common synonyms for the same concepts.
 const SYNONYM_GROUPS: string[][] = [
+  ['jesus', 'christ', 'messiah', 'saviour', 'savior'],
   ['worry', 'worried', 'worrying', 'anxious', 'anxiety', 'stress', 'stressed'],
   ['afraid', 'fear', 'scared', 'frightened', 'terrified'],
   ['sad', 'sadness', 'sorrow', 'sorrowful', 'grief', 'grieving', 'mourning'],
@@ -196,11 +216,32 @@ function toMatchQuery(question: string): string | null {
   return [...expanded].map((t) => `"${t}"`).join(' OR ');
 }
 
+// bm25() in SQLite FTS5 is negative, more-negative = better match, and it length-
+// normalizes — so a short document where the query term appears prominently (a hymn
+// title/lyric repeating "Jesus") can outrank a long, substantive EGW or commentary
+// chapter that actually explains something, especially once "who"/"was"/"what" etc. get
+// stripped as stopwords and a broad question like "who was Jesus" reduces to a single
+// common word. Hymn lyrics are devotional/musical, not explanatory — they're rarely the
+// right source for a factual or theological question, so their score gets pushed toward
+// zero (adding a positive number moves a negative bm25 score away from "best match").
+// Devotionals get a smaller nudge for the same reason, one notch down. Bible verses,
+// EGW, and commentary — the actual explanatory content — are unaffected.
+//
+// bm25(content_search, ...) takes one weight per column in declaration order
+// (text, source, ref, title) — source/ref are UNINDEXED so their weight is moot, but the
+// positional arguments are still required. title gets 3x text's weight: a chapter/entry
+// whose *title* is thematically on-point (title is now indexed, not UNINDEXED — see
+// schema.ts) is a much stronger relevance signal than the same word appearing once in a
+// few hundred characters of body text, which is exactly the gap that let a Bible verse
+// mentioning "Jesus" in passing outrank content actually about him.
 export async function searchContent(db: SQLiteDatabase, question: string, limit = 6): Promise<SearchChunk[]> {
   const match = toMatchQuery(question);
   if (!match) return [];
   return db.getAllAsync<SearchChunk>(
-    'SELECT text, source, ref, title FROM content_search WHERE content_search MATCH ? ORDER BY bm25(content_search) LIMIT ?',
+    `SELECT text, source, ref, title FROM content_search
+     WHERE content_search MATCH ?
+     ORDER BY bm25(content_search, 1.0, 0.0, 0.0, 3.0) + (CASE source WHEN 'hymnal' THEN 8 WHEN 'devotional' THEN 2 ELSE 0 END)
+     LIMIT ?`,
     match,
     limit
   );

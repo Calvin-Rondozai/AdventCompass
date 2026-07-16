@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 export const CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS bible (
@@ -121,9 +121,11 @@ CREATE TABLE IF NOT EXISTS sabbath_highlights (
 -- Full-text index the AI Assistant searches for grounding answers (Bible, EGW books,
 -- SDA Bible Commentary, hymns, devotionals). Populated lazily on first AI use (see
 -- database/searchIndex.ts) rather than during every migration, since most installs
--- never touch the AI feature.
+-- never touch the AI feature. title is indexed (not UNINDEXED) so a chapter/entry whose
+-- title is thematically on-point can actually surface — searchContent() weights it
+-- higher than body text for exactly that reason.
 CREATE VIRTUAL TABLE IF NOT EXISTS content_search USING fts5(
-  text, source UNINDEXED, ref UNINDEXED, title UNINDEXED,
+  text, source UNINDEXED, ref UNINDEXED, title,
   tokenize = 'porter unicode61'
 );
 

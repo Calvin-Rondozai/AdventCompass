@@ -191,7 +191,7 @@ export default function HomeDashboard() {
               <AnimatedCard delay={130}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: theme.spacing.sm }}>
                   <BookOpen size={16} color={theme.colors.accent} strokeWidth={2} />
-                  <Label style={{ color: theme.colors.accent }}>Sabbath School — Lesson {todaysLesson.week}</Label>
+                  <Label style={{ color: theme.colors.accent }}>Sabbath School: Lesson {todaysLesson.week}</Label>
                 </View>
                 <Heading style={{ fontSize: theme.fontSize.lg }}>{todaysLesson.dayTitle}</Heading>
                 <Body style={{ color: theme.colors.textMuted, marginTop: theme.spacing.sm }}>{todaysLesson.lessonTitle}</Body>

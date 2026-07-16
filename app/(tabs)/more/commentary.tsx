@@ -29,7 +29,7 @@ export default function CommentaryBookListScreen() {
         contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}
         ListHeaderComponent={
           <Body style={{ color: theme.colors.textMuted, marginBottom: theme.spacing.md, fontSize: theme.fontSize.sm }}>
-            S.D.A. Bible Commentary (vols. 1-6) — verse-by-verse notes from Ellen G. White's
+            S.D.A. Bible Commentary (vols. 1-6): verse-by-verse notes from Ellen G. White's
             writings. Only the Bible books covered by these volumes are listed.
           </Body>
         }

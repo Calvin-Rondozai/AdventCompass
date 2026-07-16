@@ -373,7 +373,7 @@ export default function ChapterReaderScreen() {
                       color: compareVerses.has(v.verse) ? theme.colors.text : theme.colors.textFaint,
                     }}
                   >
-                    {compareVerses.get(v.verse) ?? '—'}
+                    {compareVerses.get(v.verse) ?? '(no text)'}
                   </Body>
                 </View>
               </View>

@@ -14,7 +14,7 @@ export const BIBLE_TRANSLATIONS: TranslationInfo[] = [
     code: 'SNA',
     name: 'Bhaibheri Dzvene Rakasununguka (Shona Contemporary Bible, 2017)',
     language: 'chiShona',
-    license: 'Biblica, Inc. — CC BY-SA 4.0',
+    license: 'Biblica, Inc., CC BY-SA 4.0',
   },
 ];
 

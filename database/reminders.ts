@@ -87,7 +87,7 @@ export const REMINDER_DEFS: ReminderDef[] = [
     kind: 'time',
     defaultValue: '06:00',
     title: 'Chapter a Day',
-    body: "Today's chapter is ready — open the app to read it.",
+    body: "Today's chapter is ready, open the app to read it.",
   },
   {
     type: 'sabbath_school',
@@ -95,7 +95,7 @@ export const REMINDER_DEFS: ReminderDef[] = [
     kind: 'time',
     defaultValue: '09:00',
     title: 'Sabbath School',
-    body: "Today's lesson is ready — open the app to study.",
+    body: "Today's lesson is ready, open the app to study.",
   },
   {
     type: 'sabbath_prep',
@@ -104,7 +104,7 @@ export const REMINDER_DEFS: ReminderDef[] = [
     weekday: 6, // Friday (1=Sunday..7=Saturday)
     defaultValue: '15:00',
     title: 'Prepare for the Sabbath',
-    body: 'Get your work in order — the Sabbath begins this evening.',
+    body: 'Get your work in order, the Sabbath begins this evening.',
   },
   {
     type: 'sabbath',
@@ -113,7 +113,7 @@ export const REMINDER_DEFS: ReminderDef[] = [
     weekday: 6, // Friday (1=Sunday..7=Saturday)
     defaultValue: '18:00',
     title: 'Sabbath Reminder',
-    body: '"Remember the Sabbath day, to keep it holy." — Exodus 20:8',
+    body: '"Remember the Sabbath day, to keep it holy." (Exodus 20:8)',
   },
 ];
 

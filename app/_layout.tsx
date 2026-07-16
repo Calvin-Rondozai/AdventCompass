@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, LogBox } from 'react-native';
-import { Redirect, Stack } from 'expo-router';
+import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -130,14 +130,21 @@ function RootReady({ onReady }: { onReady: () => void }) {
     return () => sub.remove();
   }, [db]);
 
+  // Wait for the onboarding check before mounting the Stack at all — BrandedSplash is
+  // still covering the screen the whole time (onReady/setDbReady above only fires once
+  // needsOnboarding resolves), so this is invisible. The alternative — always starting
+  // the Stack on (tabs) and conditionally <Redirect>-ing to onboarding afterward — is
+  // what caused a real flash of the tab bar and its startup effects (Sabbath School
+  // sync, etc.) for a moment before bouncing to onboarding.
+  if (needsOnboarding === null) return null;
+
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={{ headerShown: false }} initialRouteName={needsOnboarding ? 'onboarding' : '(tabs)'}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="+not-found" />
       </Stack>
-      {needsOnboarding && <Redirect href="/onboarding" />}
       <AppAlertHost />
     </>
   );
