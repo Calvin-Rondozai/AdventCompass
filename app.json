@@ -17,7 +17,7 @@
       "package": "com.rondozaicalvin.adventcompass",
       "adaptiveIcon": {
         "backgroundColor": "#25516C",
-        "foregroundImage": "./assets/ico.png"
+        "foregroundImage": "./assets/icon-adaptive-fg.png"
       },
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "resize"

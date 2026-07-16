@@ -11,6 +11,10 @@ export function BrandedSplash() {
   return (
     <View style={[StyleSheet.absoluteFill, styles.container]}>
       <Image source={require('@/assets/ico.png')} resizeMode="contain" style={styles.logo} />
+      <Text style={styles.title}>
+        <Text style={styles.titleAdvent}>Advent</Text>
+        <Text style={styles.titleCompass}>Compass</Text>
+      </Text>
       <Text style={styles.poweredBy}>Powered by Hello C</Text>
     </View>
   );
@@ -25,6 +29,17 @@ const styles = StyleSheet.create({
   logo: {
     width: 160,
     height: 160,
+  },
+  title: {
+    marginTop: 16,
+    fontSize: 26,
+    fontFamily: 'Lora_700Bold',
+  },
+  titleAdvent: {
+    color: '#FFFFFF',
+  },
+  titleCompass: {
+    color: '#D4AF37',
   },
   poweredBy: {
     position: 'absolute',

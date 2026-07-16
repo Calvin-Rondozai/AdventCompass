@@ -1,9 +1,8 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { FlatList, Keyboard, Platform, TextInput, View } from 'react-native';
+import { Animated, FlatList, Keyboard, Platform, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { MotiView } from 'moti';
 import { Info, Sparkles, Download, ArrowUp } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
@@ -36,11 +35,16 @@ function formatTime(date: Date): string {
 // Cycled while waiting for the model's first token (prompt prefill on a 1B model can
 // take a few real seconds) — a plain three-dot bubble that never changes reads as
 // "frozen" past a couple of seconds, so the label rotates to keep it legible as progress.
-const THINKING_PHRASES = ['Thinking…', 'Searching the Bible, EGW & Commentary…', 'Putting it together…'];
+const THINKING_PHRASES = ['Thinking…', 'Ummmh…', 'Digging…', 'Almost there…', 'Putting together…', 'Wait…', 'ummmh...', 'Hold on…', 'One moment…', 'Just a sec…', 'Working…', 'Almost done…', 'Hang tight…', 'Let me see…', 'Checking…'];
 
 function ThinkingBubble() {
   const theme = useTheme();
   const [phraseIndex, setPhraseIndex] = useState(0);
+  // Plain Animated (not Moti/Reanimated) for this one deliberately — it's the simplest
+  // tool that reliably does a 3-dot loop, with no dependency on this project's newer
+  // Reanimated 4 + separate react-native-worklets setup, which is still unverified in a
+  // real dev build.
+  const dotAnims = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -48,6 +52,20 @@ function ThinkingBubble() {
     }, 1800);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const loops = dotAnims.map((value, i) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(i * 150),
+          Animated.timing(value, { toValue: 1, duration: 350, useNativeDriver: true }),
+          Animated.timing(value, { toValue: 0, duration: 350, useNativeDriver: true }),
+        ])
+      )
+    );
+    loops.forEach((loop) => loop.start());
+    return () => loops.forEach((loop) => loop.stop());
+  }, [dotAnims]);
 
   return (
     <View
@@ -63,13 +81,17 @@ function ThinkingBubble() {
       }}
     >
       <View style={{ flexDirection: 'row', gap: 4 }}>
-        {[0, 1, 2].map((i) => (
-          <MotiView
+        {dotAnims.map((value, i) => (
+          <Animated.View
             key={i}
-            from={{ opacity: 0.3, translateY: 0 }}
-            animate={{ opacity: 1, translateY: -3 }}
-            transition={{ type: 'timing', duration: 350, loop: true, repeatReverse: true, delay: i * 120 }}
-            style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.textFaint }}
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 3,
+              backgroundColor: theme.colors.textFaint,
+              opacity: value.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
+              transform: [{ translateY: value.interpolate({ inputRange: [0, 1], outputRange: [0, -3] }) }],
+            }}
           />
         ))}
       </View>

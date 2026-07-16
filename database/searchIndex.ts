@@ -163,6 +163,17 @@ const STOPWORDS = new Set([
 // cheap, static alternative: widen the query with common synonyms for the same concepts.
 const SYNONYM_GROUPS: string[][] = [
   ['jesus', 'christ', 'messiah', 'saviour', 'savior'],
+  ['god', 'lord', 'father', 'creator', 'almighty'],
+  ['spirit', 'comforter'],
+  ['commandment', 'commandments', 'law', 'decalogue'],
+  ['sanctuary', 'tabernacle', 'temple'],
+  ['prophecy', 'prophetic', 'prophet', 'prophesy'],
+  ['baptism', 'baptize', 'baptized', 'baptizing'],
+  ['righteousness', 'righteous', 'justified', 'justification'],
+  ['resurrection', 'resurrected', 'risen'],
+  ['satan', 'devil', 'lucifer'],
+  ['church', 'congregation'],
+  ['tithe', 'tithing', 'offering', 'offerings'],
   ['worry', 'worried', 'worrying', 'anxious', 'anxiety', 'stress', 'stressed'],
   ['afraid', 'fear', 'scared', 'frightened', 'terrified'],
   ['sad', 'sadness', 'sorrow', 'sorrowful', 'grief', 'grieving', 'mourning'],
@@ -216,16 +227,32 @@ function toMatchQuery(question: string): string | null {
   return [...expanded].map((t) => `"${t}"`).join(' OR ');
 }
 
+// When a question names which kind of source it wants — "which BIBLE VERSE talks about
+// health", "what does ELLEN WHITE say", "the COMMENTARY on this" — keyword search alone
+// has no notion of that; it just returns whatever matches best across every source, which
+// is how asking for a Bible verse can come back with an EGW paraphrase instead. Detecting
+// that intent and filtering to the named source directly fixes it.
+function detectSourceIntent(question: string): string | null {
+  const q = question.toLowerCase();
+  if (/\bbible verses?\b|\bverses? in the bible\b|\bscriptures?\b|\bwhat verse\b|\bwhich verse\b|\bthe bible\b|\bin the bible\b/.test(q)) return 'bible';
+  if (/\begw\b|ellen (g\.? ?)?white|spirit of prophecy/.test(q)) return 'egw';
+  if (/\bcommentary\b/.test(q)) return 'commentary';
+  return null;
+}
+
+// The AI Assistant answers only from Bible, EGW, and commentary — hymnal and devotional
+// content is excluded outright (not just penalized) rather than reindexed away, since
+// hymns/devotionals repeatedly produced shallow or off-topic answers (a hymn mentioning
+// "Jesus" in a lyric line is not an explanation of anything). They stay in the index —
+// removing them would mean another full reindex for no real benefit — this clause just
+// makes sure the AI assistant never sees them, ever.
+const AI_SOURCES = `('bible', 'egw', 'commentary')`;
+
 // bm25() in SQLite FTS5 is negative, more-negative = better match, and it length-
-// normalizes — so a short document where the query term appears prominently (a hymn
-// title/lyric repeating "Jesus") can outrank a long, substantive EGW or commentary
-// chapter that actually explains something, especially once "who"/"was"/"what" etc. get
-// stripped as stopwords and a broad question like "who was Jesus" reduces to a single
-// common word. Hymn lyrics are devotional/musical, not explanatory — they're rarely the
-// right source for a factual or theological question, so their score gets pushed toward
-// zero (adding a positive number moves a negative bm25 score away from "best match").
-// Devotionals get a smaller nudge for the same reason, one notch down. Bible verses,
-// EGW, and commentary — the actual explanatory content — are unaffected.
+// normalizes — so a short document where the query term appears prominently can outrank
+// a long, substantive chapter that actually explains something, especially once
+// "who"/"was"/"what" etc. get stripped as stopwords and a broad question reduces to a
+// single common word.
 //
 // bm25(content_search, ...) takes one weight per column in declaration order
 // (text, source, ref, title) — source/ref are UNINDEXED so their weight is moot, but the
@@ -237,10 +264,28 @@ function toMatchQuery(question: string): string | null {
 export async function searchContent(db: SQLiteDatabase, question: string, limit = 6): Promise<SearchChunk[]> {
   const match = toMatchQuery(question);
   if (!match) return [];
+
+  const sourceIntent = detectSourceIntent(question);
+  if (sourceIntent) {
+    const filtered = await db.getAllAsync<SearchChunk>(
+      `SELECT text, source, ref, title FROM content_search
+       WHERE content_search MATCH ? AND source = ?
+       ORDER BY bm25(content_search, 1.0, 0.0, 0.0, 3.0)
+       LIMIT ?`,
+      match,
+      sourceIntent,
+      limit
+    );
+    // Only trust the filter if it actually found something — if the requested source has
+    // no match at all, falling through to the normal search beats telling the user "not
+    // covered" when a good answer exists in another source.
+    if (filtered.length) return filtered;
+  }
+
   return db.getAllAsync<SearchChunk>(
     `SELECT text, source, ref, title FROM content_search
-     WHERE content_search MATCH ?
-     ORDER BY bm25(content_search, 1.0, 0.0, 0.0, 3.0) + (CASE source WHEN 'hymnal' THEN 8 WHEN 'devotional' THEN 2 ELSE 0 END)
+     WHERE content_search MATCH ? AND source IN ${AI_SOURCES}
+     ORDER BY bm25(content_search, 1.0, 0.0, 0.0, 3.0)
      LIMIT ?`,
     match,
     limit

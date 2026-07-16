@@ -15,11 +15,11 @@ export const AI_INFERENCE_AVAILABLE = Constants.executionEnvironment !== Executi
 
 export type ChatMessage = { id: string; role: 'user' | 'assistant'; text: string };
 
-// Fewer excerpts means a shorter prompt, which means less time spent on prefill before
-// the first token even starts streaming — 2 is still enough context for most questions,
-// and the source-rank penalty above now keeps low-value matches (hymns) from crowding
-// out the two that actually matter.
-const SEARCH_RESULT_LIMIT = 2;
+// Bumped back up from 2: with retrieval quality fixed (title weighting, source-rank
+// penalty, jesus/christ synonym), the limiting factor on answer quality is now more
+// often "not enough good context" than "too much prompt" — 3 gives the model a better
+// chance at a genuinely relevant excerpt without a large speed cost.
+const SEARCH_RESULT_LIMIT = 3;
 
 // Small talk doesn't need the model spun up at all — matched and answered instantly,
 // which also means these work even before the AI model has been downloaded. Only exact

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, LogBox } from 'react-native';
-import { Stack } from 'expo-router';
+import { router, Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -85,8 +85,17 @@ export default function RootLayout() {
 
 function RootReady({ onReady }: { onReady: () => void }) {
   const db = useSQLiteContext();
+  const pathname = usePathname();
   const lastAttempt = useRef(0);
   const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
+  // Once the initial cold-start landing is confirmed, this effect must stop acting —
+  // without this flag it kept re-firing on every pathname change for the rest of the
+  // session (needsOnboarding is only ever fetched once, on mount), which meant finishing
+  // onboarding and navigating to (tabs) got immediately overridden right back to
+  // /onboarding. Its only job is fixing the cold-start route; after that, normal
+  // navigation (like onboarding's own "Get Started" -> router.replace('/(tabs)')) must
+  // be left alone.
+  const settledRef = useRef(false);
 
   useEffect(() => {
     getKv(db, 'onboarding_complete').then((v) => {
@@ -94,9 +103,24 @@ function RootReady({ onReady }: { onReady: () => void }) {
     });
   }, [db]);
 
+  // expo-router's own initial-route resolution isn't reliable enough to trust here —
+  // verified live on a genuinely fresh install (no onboarding_complete flag in the
+  // database at all) that it opened straight to (tabs) regardless of what Stack's
+  // initialRouteName said. Forcing the right route explicitly, and only calling
+  // onReady() (which hides BrandedSplash in the parent) once the pathname actually
+  // confirms we've landed on it, means BrandedSplash stays up through however many
+  // renders the correction takes — the user never sees whatever expo-router shows
+  // internally in between, regardless of why it picked that in the first place.
   useEffect(() => {
-    if (needsOnboarding !== null) onReady();
-  }, [needsOnboarding, onReady]);
+    if (needsOnboarding === null || settledRef.current) return;
+    const target = needsOnboarding ? '/onboarding' : '/';
+    if (pathname === target) {
+      settledRef.current = true;
+      onReady();
+    } else {
+      router.replace(target);
+    }
+  }, [needsOnboarding, pathname, onReady]);
 
   // "Sync whenever it connects to the internet" without a native background-fetch
   // module (which needs a dev build we don't have working yet — see the reminders/
@@ -130,17 +154,9 @@ function RootReady({ onReady }: { onReady: () => void }) {
     return () => sub.remove();
   }, [db]);
 
-  // Wait for the onboarding check before mounting the Stack at all — BrandedSplash is
-  // still covering the screen the whole time (onReady/setDbReady above only fires once
-  // needsOnboarding resolves), so this is invisible. The alternative — always starting
-  // the Stack on (tabs) and conditionally <Redirect>-ing to onboarding afterward — is
-  // what caused a real flash of the tab bar and its startup effects (Sabbath School
-  // sync, etc.) for a moment before bouncing to onboarding.
-  if (needsOnboarding === null) return null;
-
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }} initialRouteName={needsOnboarding ? 'onboarding' : '(tabs)'}>
+      <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="+not-found" />

@@ -41,9 +41,11 @@ export default function OnboardingScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <View style={{ flex: 1, padding: theme.spacing.lg }}>
-        {/* justifyContent: 'center' here vertically centers whichever page is short enough to
-            need it (0 and 2) — page 1's list keeps its own flex: 1, which fills this space
-            completely and scrolls, so centering has no visible effect on it either way. */}
+        {/* justifyContent: 'center' vertically centers each page as a block, with visible
+            space above and below rather than content stretched edge-to-edge — page 1's list
+            is bounded to a maxHeight (not flex: 1, which used to consume all available space
+            and defeat the centering) so it still scrolls if it doesn't fit, but centers like
+            the others when it does. */}
         <View style={{ flex: 1, justifyContent: 'center' }}>
         {page === 0 && (
           <View style={{ alignItems: 'center', gap: theme.spacing.md }}>
@@ -57,9 +59,9 @@ export default function OnboardingScreen() {
         )}
 
         {page === 1 && (
-          <View style={{ flex: 1, gap: theme.spacing.md }}>
+          <View style={{ gap: theme.spacing.md }}>
             <Heading style={{ fontSize: theme.fontSize.xl, textAlign: 'center' }}>Everything in one place</Heading>
-            <ScrollView contentContainerStyle={{ gap: theme.spacing.sm + 4 }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ maxHeight: '65%' }} contentContainerStyle={{ gap: theme.spacing.sm + 4 }} showsVerticalScrollIndicator={false}>
               {FEATURES.map(({ Icon, label }) => (
                 <View key={label} style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <View

@@ -48,21 +48,27 @@ function getContext(): Promise<LlamaContext> {
 // structure (real answer, then references below it) is guaranteed by code, not by
 // hoping a small model follows a compound instruction.
 const SYSTEM_PROMPT = `You are Hello C, an offline Bible study assistant inside the AdventCompass app.
-You are given numbered excerpts from the Bible, Ellen G. White's writings, the SDA Bible Commentary,
-hymnals, and devotionals already in the app, followed by a question.
+You are given numbered excerpts from the Bible, Ellen G. White's writings, and the SDA Bible
+Commentary, followed by a question.
 
-Write a direct answer to the question in plain language, using only what the excerpts say: a
-one-sentence summary first, then at most 1-3 short sentences of supporting detail. Actually answer
-the question in your own words — never respond with just a list of excerpts, citation markers, or no
-answer at all. Do not add citations or a sources list yourself; that is handled separately. Keep it
-brief — this is a chat message, not an essay. If the excerpts don't answer the question, say plainly
-that the app's content doesn't cover it; never invent an answer from outside knowledge.`;
+Give a complete, direct answer to the question itself — state the actual answer. Never just point
+toward where it might be found, hint at it, or describe the excerpt instead of answering; the reader
+already can't see the excerpts, only your answer. Use only what the excerpts say: a one-sentence
+summary that directly answers the question, then 1-3 short sentences of supporting detail, all in
+your own words. Stay close to what the excerpts actually say — do not add details, names, or claims
+that aren't in them, even if they sound plausible. If an excerpt is only loosely related to the
+question and doesn't really answer it, say so plainly instead of stretching it into an answer it
+doesn't support. Do not add citations or a sources list yourself; that is handled separately. Keep it
+brief — this is a chat message, not an essay — but it must be a complete answer, not a teaser. If the
+excerpts don't answer the question, say plainly that the app's content doesn't cover it; never invent
+an answer from outside knowledge.`;
 
 // Caps how long a single section takes to generate — the real lever on response time.
 // A longer answer isn't lost, it just arrives as more sections (see MAX_SECTIONS below)
-// instead of one long wait. Tightened alongside the brevity instruction above — a
-// well-behaved answer should finish well under this anyway.
-const MAX_RESPONSE_TOKENS = 200;
+// instead of one long wait. Bumped back up from 200 alongside the search-limit increase
+// above — a slightly longer budget gives a genuinely relevant, well-supported answer
+// room to actually finish instead of being cut off right as it gets useful.
+const MAX_RESPONSE_TOKENS = 256;
 
 // If a section gets cut off by MAX_RESPONSE_TOKENS rather than finishing naturally, we
 // ask the model to continue as a fresh turn and deliver the continuation as its own
@@ -108,7 +114,12 @@ export async function answerFromContext(
   for (let i = 0; i < MAX_SECTIONS; i++) {
     let accumulated = '';
     const result = await context.completion(
-      { messages, n_predict: MAX_RESPONSE_TOKENS, temperature: 0.4 },
+      // Lower temperature than a typical chat assistant on purpose — this is meant to
+      // report what the source material says, not write creatively. Less randomness
+      // means less drift from the actual excerpts (e.g. embellishing or generalizing
+      // past what they support), at the cost of slightly more repetitive phrasing across
+      // answers, which is the right trade for accuracy over personality here.
+      { messages, n_predict: MAX_RESPONSE_TOKENS, temperature: 0.25 },
       callbacks?.onToken
         ? (data: TokenData) => {
             accumulated += data.token;
