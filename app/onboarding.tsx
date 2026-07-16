@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Image, ScrollView, View } from 'react-native';
+import { Image, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -61,25 +61,27 @@ export default function OnboardingScreen() {
         {page === 1 && (
           <View style={{ gap: theme.spacing.md }}>
             <Heading style={{ fontSize: theme.fontSize.xl, textAlign: 'center' }}>Everything in one place</Heading>
-            <ScrollView style={{ maxHeight: '65%' }} contentContainerStyle={{ gap: theme.spacing.sm + 4 }} showsVerticalScrollIndicator={false}>
+            {/* All 9 fit on one screen without scrolling — smaller icons and tighter row
+                gap than the other pages specifically to make room for the full list. */}
+            <View style={{ gap: theme.spacing.xs + 4 }}>
               {FEATURES.map(({ Icon, label }) => (
                 <View key={label} style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <View
                     style={{
-                      width: 34,
-                      height: 34,
+                      width: 28,
+                      height: 28,
                       borderRadius: theme.radius.sm,
                       backgroundColor: theme.colors.primarySoft,
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
                   >
-                    <Icon size={17} color={theme.colors.primary} strokeWidth={1.75} />
+                    <Icon size={15} color={theme.colors.primary} strokeWidth={1.75} />
                   </View>
                   <Body style={{ flex: 1, marginLeft: theme.spacing.sm, fontSize: theme.fontSize.sm }}>{label}</Body>
                 </View>
               ))}
-            </ScrollView>
+            </View>
           </View>
         )}
 
