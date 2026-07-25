@@ -71,23 +71,3 @@ exists and where, not a changelog of every edit.
   externally-sourced content here, not as freely redistributable. Attribution kept in the
   in-app description text.
 
-## Known constraints
-
-- **Notifications require a dev/standalone build.** Expo Go on Android (SDK 53+)
-  crashes on merely importing `expo-notifications` — every reminder-related module
-  guards on `Constants.executionEnvironment !== ExecutionEnvironment.StoreClient` and
-  no-ops in Expo Go. A dev-client build (`npx expo run:android`) has been attempted
-  repeatedly and keeps failing on flaky network (DNS/TLS resets against Google's Maven
-  mirrors) — this is an environment issue, not a code issue. Retry when network is
-  stable.
-- **Sabbath School auto-sync** runs on app launch and on returning to the foreground
-  (debounced to once a minute), not via a true OS-level background-fetch — that would
-  need `expo-background-fetch` + `expo-task-manager`, which are native modules requiring
-  the same currently-blocked dev build. This is the reliable option available today; the
-  native version can be added once a dev build exists.
-- **AI Bible Assistant**: intentionally not implemented yet — explicitly deferred until
-  the app owner asks for it.
-- **Lazy loading discipline**: every large JSON dataset (Bible translations, hymnals,
-  EGW books, commentary volumes) is `require()`'d inside a function, not at module top
-  level, and cached in a module-level map after first load. This is the main performance
-  lever in the app — don't reintroduce a top-level `import` of a large JSON file.
