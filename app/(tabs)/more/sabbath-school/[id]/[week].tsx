@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Dimensions, FlatList, ScrollView, View } from 'react-native';
+import { FlatList, ScrollView, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -9,7 +9,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { getQuarterData, SabbathDay, SabbathQuarterData } from '@/database/sabbathSchool';
 import { findScriptureRefs } from '@/database/scriptureRefs';
 import { getSabbathAnswers, saveSabbathAnswer } from '@/database/sabbathAnswers';
-import { getSabbathHighlights, toggleSabbathHighlightColor } from '@/database/sabbathHighlights';
+import { addSabbathHighlight, getSabbathHighlights, removeSabbathHighlight, SabbathHighlight } from '@/database/sabbathHighlights';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_HEX, HighlightColor } from '@/database/highlights';
 import { VersePopup, VerseRef } from '@/components/bible/VersePopup';
 import { Collapsible } from '@/components/sabbath/Collapsible';
@@ -18,7 +18,6 @@ import { PressableScale } from '@/components/ui/PressableScale';
 import { Body, Heading, Label } from '@/components/ui/Typography';
 
 const DAY_NAMES = ['Sabbath', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-const SCREEN_WIDTH = Dimensions.get('window').width;
 
 // Lesson prose is full of scripture references ("John 3:16", "Rom. 5:8") — make each one
 // tappable so it pops up right here instead of navigating away and leaving the lesson.
@@ -44,11 +43,78 @@ function renderBlockText(text: string, linkColor: string, onPressRef: (ref: Vers
   return nodes;
 }
 
+function tokenizeWords(text: string): { word: string; start: number; end: number }[] {
+  const tokens: { word: string; start: number; end: number }[] = [];
+  const re = /\S+/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) tokens.push({ word: m[0], start: m.index, end: m.index + m[0].length });
+  return tokens;
+}
+
+// Renders one block word-by-word so a highlight can cover just the words the user picked
+// instead of the whole paragraph, while scripture references stay tappable as a unit —
+// a word inside a reference always opens the verse popup rather than joining a selection.
+function renderHighlightableBlock(
+  text: string,
+  blockIndex: number,
+  opts: {
+    linkColor: string;
+    pendingColor: string;
+    blockHighlights: SabbathHighlight[];
+    swatchHex: Record<HighlightColor, string>;
+    anchorWord: number | null;
+    pendingRange: { start: number; end: number } | null;
+    onPressRef: (ref: VerseRef) => void;
+    onWordPress: (blockIndex: number, wordIndex: number) => void;
+    onWordLongPress: (blockIndex: number, wordIndex: number) => void;
+  }
+) {
+  const { linkColor, pendingColor, blockHighlights, swatchHex, anchorWord, pendingRange, onPressRef, onWordPress, onWordLongPress } = opts;
+  const refs = findScriptureRefs(text);
+  const words = tokenizeWords(text);
+
+  const highlightColorFor = (wordIndex: number): string | undefined => {
+    // Ranges can overlap (see the ponytail note on applyHighlight) — last match wins.
+    let color: HighlightColor | undefined;
+    for (const h of blockHighlights) {
+      const covered = h.startWord === -1 || (wordIndex >= h.startWord && wordIndex <= h.endWord);
+      if (covered) color = h.color;
+    }
+    return color ? swatchHex[color] : undefined;
+  };
+
+  const nodes: React.ReactNode[] = [];
+  let cursor = 0;
+  words.forEach((tok, wordIndex) => {
+    if (tok.start > cursor) nodes.push(text.slice(cursor, tok.start));
+    const ref = refs.find((r) => tok.start < r.end && tok.end > r.start);
+    const isPending = pendingRange ? wordIndex >= pendingRange.start && wordIndex <= pendingRange.end : wordIndex === anchorWord;
+    nodes.push(
+      <Body
+        key={wordIndex}
+        onPress={() => (ref ? onPressRef({ book: ref.book, chapter: ref.chapter, verse: ref.verse, verseEnd: ref.verseEnd }) : onWordPress(blockIndex, wordIndex))}
+        onLongPress={() => !ref && onWordLongPress(blockIndex, wordIndex)}
+        style={{
+          color: ref ? linkColor : undefined,
+          textDecorationLine: ref ? 'underline' : 'none',
+          backgroundColor: isPending ? pendingColor : highlightColorFor(wordIndex),
+        }}
+      >
+        {tok.word}
+      </Body>
+    );
+    cursor = tok.end;
+  });
+  if (cursor < text.length) nodes.push(text.slice(cursor));
+  return nodes;
+}
+
 const MEMORY_TEXT_RE = /^Memory Text:\s*/i;
 const ADDITIONAL_READING_RE = /^Additional Reading/i;
 
 export default function SabbathLessonReaderScreen() {
   const theme = useTheme();
+  const { width: SCREEN_WIDTH } = useWindowDimensions();
   const db = useSQLiteContext();
   const navigation = useNavigation();
   const { id, week: rawWeek, day: dayParam } = useLocalSearchParams<{ id: string; week: string; day?: string }>();
@@ -58,13 +124,14 @@ export default function SabbathLessonReaderScreen() {
   const [activeDay, setActiveDay] = useState(0);
   const appliedInitialDay = useRef(false);
   const [answers, setAnswers] = useState<Map<number, string>>(new Map());
-  const [highlights, setHighlights] = useState<Map<number, HighlightColor>>(new Map());
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [highlights, setHighlights] = useState<Map<number, SabbathHighlight[]>>(new Map());
+  const [anchor, setAnchor] = useState<{ block: number; word: number } | null>(null);
+  const [pending, setPending] = useState<{ block: number; start: number; end: number } | null>(null);
   const [showColorRow, setShowColorRow] = useState(false);
   const listRef = useRef<FlatList<SabbathDay>>(null);
   const answerTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const swatchHex = HIGHLIGHT_HEX[theme.scheme];
-  const isSelecting = selected.size > 0;
+  const isSelecting = anchor != null || pending != null;
 
   useEffect(() => {
     if (id) getQuarterData(db, id).then(setQuarter);
@@ -95,7 +162,8 @@ export default function SabbathLessonReaderScreen() {
     if (!quarter) return;
     const day = lesson?.days[activeDay]?.day;
     if (day == null) return;
-    setSelected(new Set());
+    setAnchor(null);
+    setPending(null);
     setShowColorRow(false);
     getSabbathAnswers(db, quarter.id, weekNumber, day).then(setAnswers);
     getSabbathHighlights(db, quarter.id, weekNumber, day).then(setHighlights);
@@ -112,58 +180,66 @@ export default function SabbathLessonReaderScreen() {
     answerTimers.current.set(blockIndex, timer);
   };
 
-  const toggleSelected = useCallback((i: number) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(i)) next.delete(i);
-      else next.add(i);
-      return next;
-    });
-  }, []);
-
   const clearSelection = useCallback(() => {
-    setSelected(new Set());
+    setAnchor(null);
+    setPending(null);
     setShowColorRow(false);
   }, []);
 
+  // First tap on a word anchors the selection; a second tap in the same block confirms
+  // the range and opens the color row. Tapping while a range is already pending is a
+  // no-op — clear it with the X button first, rather than silently restarting it.
+  const handleWordPress = useCallback(
+    (blockIndex: number, wordIndex: number) => {
+      if (pending) return;
+      if (!anchor || anchor.block !== blockIndex) {
+        setAnchor({ block: blockIndex, word: wordIndex });
+        return;
+      }
+      setPending({ block: blockIndex, start: Math.min(anchor.word, wordIndex), end: Math.max(anchor.word, wordIndex) });
+      setAnchor(null);
+    },
+    [anchor, pending]
+  );
+
+  // Long-pressing a word that's part of an existing highlight removes just that range.
+  const handleWordLongPress = useCallback(
+    async (blockIndex: number, wordIndex: number) => {
+      const blockHighlights = highlights.get(blockIndex) ?? [];
+      const hit = blockHighlights.find((h) => h.startWord === -1 || (wordIndex >= h.startWord && wordIndex <= h.endWord));
+      if (!hit) return;
+      await removeSabbathHighlight(db, hit.id);
+      setHighlights((prev) => {
+        const next = new Map(prev);
+        next.set(blockIndex, (next.get(blockIndex) ?? []).filter((h) => h.id !== hit.id));
+        return next;
+      });
+    },
+    [db, highlights]
+  );
+
+  // ponytail: overlapping ranges within a block are allowed to stack rather than being
+  // trimmed/merged against existing highlights — renderHighlightableBlock just lets the
+  // last-inserted range win per word. Add merge-on-overlap if that ever looks wrong.
   const applyHighlight = useCallback(
     async (color: HighlightColor) => {
-      if (!quarter) return;
+      if (!quarter || !pending) return;
       const day = lesson?.days[activeDay]?.day;
       if (day == null) return;
-      const targets = [...selected];
-      const allSameColor = targets.every((b) => highlights.get(b) === color);
-      const next = new Map(highlights);
-      for (const b of targets) {
-        const current = next.get(b);
-        if (allSameColor) {
-          if (current === color) {
-            await toggleSabbathHighlightColor(db, quarter.id, weekNumber, day, b, color);
-            next.delete(b);
-          }
-        } else if (current === color) {
-          // already correct
-        } else if (current) {
-          await toggleSabbathHighlightColor(db, quarter.id, weekNumber, day, b, current);
-          await toggleSabbathHighlightColor(db, quarter.id, weekNumber, day, b, color);
-          next.set(b, color);
-        } else {
-          await toggleSabbathHighlightColor(db, quarter.id, weekNumber, day, b, color);
-          next.set(b, color);
-        }
-      }
-      setHighlights(next);
+      const id = await addSabbathHighlight(db, quarter.id, weekNumber, day, pending.block, pending.start, pending.end, color);
+      setHighlights((prev) => {
+        const next = new Map(prev);
+        next.set(pending.block, [...(next.get(pending.block) ?? []), { id, startWord: pending.start, endWord: pending.end, color }]);
+        return next;
+      });
       clearSelection();
     },
-    [db, quarter, lesson, activeDay, selected, highlights, clearSelection]
+    [db, quarter, lesson, activeDay, pending, clearSelection]
   );
 
   if (!lesson) return null;
 
   const renderBlock = (block: SabbathDay['blocks'][number], index: number) => {
-    const color = highlights.get(index);
-    const isSelected = selected.has(index);
-
     if (block.type === 'question') {
       return (
         <DiscussionQuestionCard
@@ -175,31 +251,10 @@ export default function SabbathLessonReaderScreen() {
       );
     }
 
-    const wrap = (content: React.ReactNode) => (
-      <PressableScale
-        key={index}
-        onPress={() => isSelecting && toggleSelected(index)}
-        onLongPress={() => toggleSelected(index)}
-        scaleTo={0.995}
-      >
-        <View
-          style={{
-            backgroundColor: color ? swatchHex[color] : 'transparent',
-            borderRadius: theme.radius.sm,
-            borderWidth: isSelected ? 2 : 0,
-            borderColor: theme.colors.primary,
-            marginBottom: theme.spacing.sm,
-            padding: color || isSelected ? theme.spacing.xs : 0,
-          }}
-        >
-          {content}
-        </View>
-      </PressableScale>
-    );
-
     if (block.type === 'heading') {
-      return wrap(
+      return (
         <Body
+          key={index}
           style={{
             fontFamily: theme.fontFamily.sansSemiBold,
             fontSize: theme.fontSize.base,
@@ -212,17 +267,30 @@ export default function SabbathLessonReaderScreen() {
       );
     }
 
+    const highlightOpts = {
+      pendingColor: theme.colors.primarySoft,
+      blockHighlights: highlights.get(index) ?? [],
+      swatchHex,
+      anchorWord: anchor?.block === index ? anchor.word : null,
+      pendingRange: pending?.block === index ? pending : null,
+      onPressRef: setPopupRef,
+      onWordPress: handleWordPress,
+      onWordLongPress: handleWordLongPress,
+    };
+
     if (block.type === 'quote') {
       const isMemoryText = MEMORY_TEXT_RE.test(block.text);
       const body = isMemoryText ? block.text.replace(MEMORY_TEXT_RE, '') : block.text;
-      return wrap(
+      return (
         <View
+          key={index}
           style={{
             borderLeftWidth: 3,
             borderLeftColor: theme.colors.accent,
             backgroundColor: theme.colors.accentSoft,
             borderRadius: theme.radius.sm,
             padding: theme.spacing.sm + 2,
+            marginBottom: theme.spacing.sm,
           }}
         >
           {isMemoryText && (
@@ -238,22 +306,24 @@ export default function SabbathLessonReaderScreen() {
               color: theme.colors.onAccent,
             }}
           >
-            {renderBlockText(body, theme.colors.onAccent, setPopupRef)}
+            {renderHighlightableBlock(body, index, { ...highlightOpts, linkColor: theme.colors.onAccent })}
           </Body>
         </View>
       );
     }
 
-    return wrap(
+    return (
       <Body
+        key={index}
         style={{
           fontFamily: theme.fontFamily.serifRegular,
           fontSize: theme.fontSize.md,
           lineHeight: theme.lineHeight.lg,
           textAlign: 'justify',
+          marginBottom: theme.spacing.sm,
         }}
       >
-        {renderBlockText(block.text, theme.colors.primary, setPopupRef)}
+        {renderHighlightableBlock(block.text, index, { ...highlightOpts, linkColor: theme.colors.primary })}
       </Body>
     );
   };
@@ -329,6 +399,14 @@ export default function SabbathLessonReaderScreen() {
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
+        // Word-level highlighting (see renderHighlightableBlock) renders one tappable node
+        // per word, so a whole day's content is hundreds of elements — FlatList's default
+        // windowSize (21) would happily mount all 7 days at once despite only one being
+        // visible. Capping it to the current page plus one neighbor either side is what
+        // actually keeps opening a lesson fast.
+        initialNumToRender={1}
+        maxToRenderPerBatch={1}
+        windowSize={3}
         getItemLayout={(_, index) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index })}
         onMomentumScrollEnd={(e) => {
           const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
@@ -357,7 +435,7 @@ export default function SabbathLessonReaderScreen() {
             padding: theme.spacing.md,
           }}
         >
-          {showColorRow && (
+          {showColorRow && pending && (
             <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginBottom: theme.spacing.sm }}>
               {HIGHLIGHT_COLORS.map((c) => (
                 <PressableScale key={c} onPress={() => applyHighlight(c)} scaleTo={0.85}>
@@ -368,11 +446,15 @@ export default function SabbathLessonReaderScreen() {
           )}
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Body style={{ flex: 1, color: theme.colors.textMuted, fontSize: theme.fontSize.sm }}>
-              {selected.size} paragraph{selected.size > 1 ? 's' : ''} selected
+              {pending
+                ? `${pending.end - pending.start + 1} word${pending.end > pending.start ? 's' : ''} selected`
+                : 'Tap the last word to finish selecting'}
             </Body>
-            <PressableScale onPress={() => setShowColorRow((v) => !v)} style={{ padding: theme.spacing.xs }}>
-              <Palette size={20} color={theme.colors.primary} strokeWidth={1.75} />
-            </PressableScale>
+            {pending && (
+              <PressableScale onPress={() => setShowColorRow((v) => !v)} style={{ padding: theme.spacing.xs }}>
+                <Palette size={20} color={theme.colors.primary} strokeWidth={1.75} />
+              </PressableScale>
+            )}
             <PressableScale onPress={clearSelection} style={{ padding: theme.spacing.xs }}>
               <X size={20} color={theme.colors.textMuted} strokeWidth={1.75} />
             </PressableScale>

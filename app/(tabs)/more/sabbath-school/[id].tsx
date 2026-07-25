@@ -33,11 +33,6 @@ export default function SabbathQuarterLessonsScreen() {
         data={quarter.lessons}
         keyExtractor={(item) => String(item.week)}
         contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}
-        ListHeaderComponent={
-          <Body style={{ color: theme.colors.textMuted, marginBottom: theme.spacing.md, fontSize: theme.fontSize.sm }}>
-            {quarter.description}
-          </Body>
-        }
         renderItem={({ item }) => (
           <PressableScale
             onPress={() => router.push({ pathname: '/more/sabbath-school/[id]/[week]', params: { id: id ?? '', week: String(item.week) } })}

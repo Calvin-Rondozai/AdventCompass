@@ -56,13 +56,25 @@ export async function hasQuarter(db: SQLiteDatabase, id: string): Promise<boolea
   return !!row;
 }
 
+// Each quarter's `data` blob is the full 13-week/~90-day lesson (hundreds of KB of JSON) —
+// parsing it is the actual cost of opening a lesson, and both the week-list screen and the
+// lesson reader screen call getQuarterData for the same id back to back. Caching the parsed
+// object in memory means the second call (and every day-switch within a lesson) is free
+// instead of re-running SELECT + JSON.parse on the whole quarter each time.
+const quarterCache = new Map<string, SabbathQuarterData>();
+
 export async function getQuarterData(db: SQLiteDatabase, id: string): Promise<SabbathQuarterData | null> {
+  const cached = quarterCache.get(id);
+  if (cached) return cached;
   const row = await db.getFirstAsync<{ data: string }>('SELECT data FROM sabbath_quarters WHERE id = ?', id);
   if (!row) return null;
-  return JSON.parse(row.data);
+  const quarter = JSON.parse(row.data);
+  quarterCache.set(id, quarter);
+  return quarter;
 }
 
 export async function saveQuarter(db: SQLiteDatabase, quarter: SabbathQuarterData): Promise<void> {
+  quarterCache.delete(quarter.id);
   await db.runAsync(
     `INSERT INTO sabbath_quarters (id, code, lang, edition, title, description, human_date, start_date, end_date, cover, data, downloaded_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -86,6 +98,7 @@ export async function saveQuarter(db: SQLiteDatabase, quarter: SabbathQuarterDat
 }
 
 export async function deleteQuarter(db: SQLiteDatabase, id: string): Promise<void> {
+  quarterCache.delete(id);
   await db.runAsync('DELETE FROM sabbath_quarters WHERE id = ?', id);
 }
 

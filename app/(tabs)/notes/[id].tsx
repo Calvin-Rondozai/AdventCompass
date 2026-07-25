@@ -327,6 +327,7 @@ export default function NoteEditorScreen() {
               value={reminderEnabled}
               onValueChange={setReminderEnabled}
               trackColor={{ false: theme.colors.surface, true: theme.colors.primary }}
+              thumbColor={reminderEnabled ? theme.colors.onPrimary : theme.colors.surfaceElevated}
             />
           </View>
           {reminderEnabled && (

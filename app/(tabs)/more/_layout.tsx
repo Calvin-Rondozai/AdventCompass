@@ -23,9 +23,8 @@ export default function MoreStackLayout() {
       <Stack.Screen name="reading-plans/new" options={{ title: 'New Plan' }} />
       <Stack.Screen name="reading-plans/[planId]" options={{ title: '' }} />
       <Stack.Screen name="offertory" options={{ title: 'Offertory Reading' }} />
-      <Stack.Screen name="hymnal" options={{ title: 'Hymnal' }} />
-      <Stack.Screen name="hymnal/[language]" options={{ title: '' }} />
-      <Stack.Screen name="hymnal/[language]/[number]" options={{ title: '' }} />
+      <Stack.Screen name="prayer" options={{ title: 'Prayer Journal' }} />
+      <Stack.Screen name="prayer/[id]" options={{ title: '', presentation: 'modal' }} />
       <Stack.Screen name="health" options={{ title: 'Health & Wellness' }} />
       <Stack.Screen name="egw" options={{ title: 'Ellen G. White Books' }} />
       <Stack.Screen name="egw/[code]" options={{ title: '' }} />

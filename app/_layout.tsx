@@ -1,13 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, LogBox } from 'react-native';
-import { router, Stack, usePathname } from 'expo-router';
+import {
+  DarkTheme as NavDarkTheme,
+  DefaultTheme as NavDefaultTheme,
+  router,
+  Stack,
+  ThemeProvider as NavigationThemeProvider,
+  usePathname,
+} from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getKv } from '@/database/kv';
-import { BrandedSplash } from '@/components/ui/BrandedSplash';
 import { useTheme } from '@/theme/ThemeProvider';
 
 // moti re-exports a SafeAreaView from its own bundle that internally imports the
@@ -49,17 +55,10 @@ export default function RootLayout() {
     Raleway_700Bold,
   });
   const [dbReady, setDbReady] = useState(false);
-  const [showBrandedSplash, setShowBrandedSplash] = useState(true);
 
   useEffect(() => {
     if (fontsLoaded && dbReady) {
-      SplashScreen.hideAsync()
-        .catch(() => {})
-        .then(() => {
-          // Native splash can't show text — hold our own matching screen (with "Powered
-          // by Hello C") up for a beat right as it hides, then reveal the real app.
-          setTimeout(() => setShowBrandedSplash(false), 700);
-        });
+      SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsLoaded, dbReady]);
 
@@ -80,7 +79,6 @@ export default function RootLayout() {
           </ThemeProvider>
         </SQLiteProvider>
       </SafeAreaProvider>
-      {showBrandedSplash && <BrandedSplash />}
     </GestureHandlerRootView>
   );
 }
@@ -100,6 +98,28 @@ function RootReady({ onReady }: { onReady: () => void }) {
   // be left alone.
   const settledRef = useRef(false);
 
+  // expo-router's own NavigationContainer always defaults to a hardcoded light
+  // theme (see expo-router/build/react-navigation/native/theming/DefaultTheme),
+  // which react-native-screens paints natively behind every push transition —
+  // that's the light flash seen when navigating in dark mode. Bridging our own
+  // theme into React Navigation's ThemeProvider fixes it at the native layer.
+  const navTheme = useMemo(() => {
+    const base = theme.scheme === 'dark' ? NavDarkTheme : NavDefaultTheme;
+    return {
+      ...base,
+      dark: theme.scheme === 'dark',
+      colors: {
+        ...base.colors,
+        primary: theme.colors.primary,
+        background: theme.colors.background,
+        card: theme.colors.surface,
+        text: theme.colors.text,
+        border: theme.colors.border,
+        notification: theme.colors.danger,
+      },
+    };
+  }, [theme]);
+
   useEffect(() => {
     getKv(db, 'onboarding_complete').then((v) => {
       setNeedsOnboarding(v !== '1');
@@ -110,8 +130,8 @@ function RootReady({ onReady }: { onReady: () => void }) {
   // verified live on a genuinely fresh install (no onboarding_complete flag in the
   // database at all) that it opened straight to (tabs) regardless of what Stack's
   // initialRouteName said. Forcing the right route explicitly, and only calling
-  // onReady() (which hides BrandedSplash in the parent) once the pathname actually
-  // confirms we've landed on it, means BrandedSplash stays up through however many
+  // onReady() (which hides the native splash in the parent) once the pathname actually
+  // confirms we've landed on it, means the splash stays up through however many
   // renders the correction takes — the user never sees whatever expo-router shows
   // internally in between, regardless of why it picked that in the first place.
   useEffect(() => {
@@ -164,11 +184,13 @@ function RootReady({ onReady }: { onReady: () => void }) {
           disappearing. "auto" doesn't work here since it means "invert display's own color",
           not "match app theme". */}
       <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="onboarding" />
-        <Stack.Screen name="+not-found" />
-      </Stack>
+      <NavigationThemeProvider value={navTheme}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="onboarding" />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+      </NavigationThemeProvider>
       <AppAlertHost />
     </>
   );

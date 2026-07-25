@@ -28,7 +28,7 @@ export default function HymnalListScreen() {
   }, [hymns, query]);
 
   const goToHymn = (number: number) => {
-    router.push({ pathname: '/more/hymnal/[language]/[number]', params: { language: lang, number: String(number) } });
+    router.push({ pathname: '/hymnal/[language]/[number]', params: { language: lang, number: String(number) } });
   };
 
   useLayoutEffect(() => {

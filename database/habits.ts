@@ -38,14 +38,14 @@ export async function toggleHabit(db: SQLiteDatabase, habitType: HabitType, date
   }
 }
 
-export async function addWater(db: SQLiteDatabase, date: string, amountMl: number): Promise<number> {
+export async function addWater(db: SQLiteDatabase, date: string, amountMl: number, goalMl: number = WATER_GOAL_ML): Promise<number> {
   const existing = await db.getFirstAsync<HabitRow>(
     'SELECT * FROM habits WHERE habit_type = ? AND date = ?',
     'water',
     date
   );
   const nextValue = Math.max(0, (existing?.value ?? 0) + amountMl);
-  const completed = nextValue >= WATER_GOAL_ML ? 1 : 0;
+  const completed = nextValue >= goalMl ? 1 : 0;
   if (existing) {
     await db.runAsync('UPDATE habits SET value = ?, completed = ? WHERE id = ?', nextValue, completed, existing.id);
   } else {

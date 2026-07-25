@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useMemo } from 'react';
-import { Dimensions, FlatList, View } from 'react-native';
+import { FlatList, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 
@@ -28,7 +28,7 @@ export default function BookChaptersScreen() {
   }, [navigation, book, translation]);
 
   const columns = 5;
-  const windowWidth = Dimensions.get('window').width;
+  const { width: windowWidth } = useWindowDimensions();
   const cellSize =
     (windowWidth - theme.spacing.lg * 2 - theme.spacing.sm * (columns - 1)) / columns;
 

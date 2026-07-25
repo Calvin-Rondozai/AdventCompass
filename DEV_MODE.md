@@ -27,7 +27,7 @@ exists and where, not a changelog of every edit.
 | Cross-references | verse `Link2` icon in chapter reader | `database/crossReferences.ts` (openbible.info, CC BY) |
 | Bible Commentary (S.D.A. Bible Commentary, vols. 1-6) | `app/(tabs)/more/commentary*` | `database/sdaCommentary.ts` |
 | Ellen G. White books (~40 titles) | `app/(tabs)/more/egw*` | `database/egwBooks.ts` |
-| Hymnal (English/chiShona/isiNdebele) | `app/(tabs)/more/hymnal*` | `database/hymnal.ts` |
+| Hymnal (English/chiShona/isiNdebele) | `app/(tabs)/hymnal*` | `database/hymnal.ts` |
 | Fundamental Beliefs (28) | `app/(tabs)/more/beliefs*` | `database/fundamentalBeliefs.ts` |
 | Sabbath School lessons (auto-synced; English/chiShona, standard/Easy Reading) | `app/(tabs)/more/sabbath-school*` | `database/sabbathSchool.ts`, `services/sabbathSchoolSync.ts` |
 | Devotionals | `app/(tabs)/more/devotional.tsx` | `database/devotionals.ts` |

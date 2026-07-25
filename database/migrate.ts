@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { CREATE_TABLES_SQL, SCHEMA_VERSION } from './schema';
 import { loadFullBible } from './loadFullBible';
+import { loadEgwBooksIfNeeded } from './egwBooks';
 
 export const DATABASE_NAME = 'maranatha_one.db';
 
@@ -32,6 +33,24 @@ async function ensureNotesReminderColumns(db: SQLiteDatabase): Promise<void> {
   if (!names.has('checklist')) {
     await db.execAsync('ALTER TABLE notes ADD COLUMN checklist TEXT');
   }
+}
+
+// sabbath_highlights gained start_word/end_word (schema v13) so a highlight can cover
+// just the words picked, not the whole block — existing rows are real user data, so
+// backfill columns via ALTER instead of dropping like the caches above. The old unique
+// index on (quarter_id, week, day, block_index) also has to go: a block can now hold
+// more than one highlighted range.
+async function ensureSabbathHighlightsWordColumns(db: SQLiteDatabase): Promise<void> {
+  const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(sabbath_highlights)');
+  if (columns.length === 0) return;
+  const names = new Set(columns.map((c) => c.name));
+  if (!names.has('start_word')) {
+    await db.execAsync('ALTER TABLE sabbath_highlights ADD COLUMN start_word INTEGER NOT NULL DEFAULT -1');
+  }
+  if (!names.has('end_word')) {
+    await db.execAsync('ALTER TABLE sabbath_highlights ADD COLUMN end_word INTEGER NOT NULL DEFAULT -1');
+  }
+  await db.execAsync('DROP INDEX IF EXISTS idx_sabbath_highlights_block');
 }
 
 export async function migrateDbIfNeeded(db: SQLiteDatabase) {
@@ -66,12 +85,14 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
     await db.execAsync('DROP TABLE IF EXISTS content_search');
   }
 
+  await ensureSabbathHighlightsWordColumns(db);
   await db.execAsync(CREATE_TABLES_SQL);
   await ensureNotesReminderColumns(db);
 
   if (needsBibleRebuild) {
     await loadFullBible(db);
   }
+  await loadEgwBooksIfNeeded(db);
 
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   const currentVersion = row?.user_version ?? 0;

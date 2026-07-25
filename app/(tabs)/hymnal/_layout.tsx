@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { useTheme } from '@/theme/ThemeProvider';
 
-export default function PrayerStackLayout() {
+export default function HymnalStackLayout() {
   const theme = useTheme();
 
   return (
@@ -14,8 +14,9 @@ export default function PrayerStackLayout() {
         contentStyle: { backgroundColor: theme.colors.background },
       }}
     >
-      <Stack.Screen name="index" options={{ title: 'Prayer Journal' }} />
-      <Stack.Screen name="[id]" options={{ title: '', presentation: 'modal' }} />
+      <Stack.Screen name="index" options={{ title: 'Hymnal' }} />
+      <Stack.Screen name="[language]" options={{ title: '' }} />
+      <Stack.Screen name="[language]/[number]" options={{ title: '' }} />
     </Stack>
   );
 }

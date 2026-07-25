@@ -85,6 +85,7 @@ function CoverThumbFull({ uri }: { uri: string | null }) {
         style={{
           width: '100%',
           aspectRatio: 3 / 4,
+          maxHeight: 160,
           borderRadius: theme.radius.sm,
           backgroundColor: theme.colors.accentSoft,
           alignItems: 'center',
@@ -99,7 +100,8 @@ function CoverThumbFull({ uri }: { uri: string | null }) {
     <Image
       source={{ uri }}
       onError={() => setFailed(true)}
-      style={{ width: '100%', aspectRatio: 3 / 4, borderRadius: theme.radius.sm, backgroundColor: theme.colors.surfaceMuted }}
+      style={{ width: '100%', aspectRatio: 3 / 4, maxHeight: 160, borderRadius: theme.radius.sm, backgroundColor: theme.colors.surfaceMuted }}
+      resizeMode="cover"
     />
   );
 }

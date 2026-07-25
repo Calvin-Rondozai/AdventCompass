@@ -158,6 +158,7 @@ export default function NotificationsScreen() {
                   value={reminder.enabled}
                   onValueChange={(v) => handleToggle(reminder.type, v, reminder.time)}
                   trackColor={{ false: theme.colors.surfaceMuted, true: theme.colors.primary }}
+                  thumbColor={reminder.enabled ? theme.colors.onPrimary : theme.colors.surfaceElevated}
                 />
               </View>
             </AnimatedCard>

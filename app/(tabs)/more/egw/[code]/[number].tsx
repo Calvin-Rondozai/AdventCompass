@@ -52,21 +52,27 @@ export default function EgwChapterReaderScreen() {
   const navigation = useNavigation();
   const { code, number } = useLocalSearchParams<{ code: string; number: string }>();
   const [book, setBook] = useState<EgwBook | undefined>(undefined);
-  // getEgwBook reads the book's .datjson asset off disk the first time it's opened — some
-  // titles are 1MB+ of text — so it's genuinely async now rather than a same-tick
-  // require()+JSON.parse. The book is cached after this, so revisiting it (a different
-  // chapter) resolves instantly.
+  const [failed, setFailed] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
+  // getEgwBook reads the book's chapters straight from SQLite (loaded once at migration
+  // time from the bundled .datjson assets — see database/egwBooks.ts) rather than
+  // re-parsing a multi-megabyte JSON asset on every open.
   useEffect(() => {
     if (!code) return;
     setBook(undefined);
+    setFailed(false);
     let cancelled = false;
-    getEgwBook(code).then((b) => {
-      if (!cancelled) setBook(b);
-    });
+    getEgwBook(db, code)
+      .then((b) => {
+        if (!cancelled) setBook(b);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
     return () => {
       cancelled = true;
     };
-  }, [code]);
+  }, [db, code, retryToken]);
   const chapterNumber = Number(number);
   const chapter = book?.chapters.find((c) => c.number === chapterNumber);
   const prevChapter = book?.chapters.find((c) => c.number === chapterNumber - 1);
@@ -147,6 +153,19 @@ export default function EgwChapterReaderScreen() {
       params: { id: 'new', linkedVerse: label, category: 'reflection' },
     });
   }, [book, chapter, selected, clearSelection]);
+
+  if (failed) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.lg }}>
+        <Body style={{ color: theme.colors.textMuted, textAlign: 'center', marginBottom: theme.spacing.md }}>
+          This chapter couldn't be loaded.
+        </Body>
+        <PressableScale onPress={() => setRetryToken((n) => n + 1)}>
+          <Body style={{ color: theme.colors.primary, fontFamily: theme.fontFamily.sansSemiBold }}>Try again</Body>
+        </PressableScale>
+      </SafeAreaView>
+    );
+  }
 
   if (!book || !chapter) return null;
 

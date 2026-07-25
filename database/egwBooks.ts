@@ -1,3 +1,4 @@
+import type { SQLiteDatabase } from 'expo-sqlite';
 import { loadJsonAsset } from './loadJsonAsset';
 
 export type EgwChapter = { number: number; title: string; content: string };
@@ -55,9 +56,9 @@ export const EGW_BOOK_LIST: { code: string; title: string }[] = [
   { code: 'sdabc7a', title: 'S.D.A. Bible Commentary, vol. 7A (Appendix)' },
 ];
 
-// Each book is its own .datjson file (some are large), loaded on demand so opening the app
-// doesn't parse every EGW book into memory — only the one the user actually opens. See
-// metro.config.js/loadJsonAsset.ts for why these aren't plain JSON requires.
+// Each book is its own .datjson file (some are large) — only read once, by
+// loadEgwBooksIfNeeded below, to seed the egw_chapters table. See metro.config.js /
+// loadJsonAsset.ts for why these are bundled assets rather than plain JSON requires.
 const BOOK_MODULES: Record<string, number> = {
   sc: require('./egwSc.datjson'),
   pp: require('./egwPp.datjson'),
@@ -110,29 +111,66 @@ const BOOK_MODULES: Record<string, number> = {
   sdabc7a: require('./egwSdabc7a.datjson'),
 };
 
-const BOOK_DATA: Partial<Record<string, EgwBook>> = {};
+// One-time migration: copies every book out of its .datjson asset and into the
+// egw_chapters table, the same pattern loadFullBible.ts uses for Bible translations.
+// Reading straight from SQLite from then on is both faster (no per-open asset copy +
+// megabyte-scale JSON.parse) and more reliable — the .datjson/expo-asset path had no
+// error recovery and could leave a book stuck "loading" forever if a single read failed.
+const INSERT_BATCH_SIZE = 50;
 
-async function loadBook(code: string): Promise<EgwBook | undefined> {
-  if (!BOOK_DATA[code]) {
-    const moduleId = BOOK_MODULES[code];
-    if (moduleId === undefined) return undefined;
-    BOOK_DATA[code] = await loadJsonAsset<EgwBook>(moduleId);
-  }
-  return BOOK_DATA[code];
+export async function loadEgwBooksIfNeeded(db: SQLiteDatabase): Promise<void> {
+  const row = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) as n FROM egw_chapters');
+  if ((row?.n ?? 0) > 0) return;
+
+  await db.withTransactionAsync(async () => {
+    for (const { code, title } of EGW_BOOK_LIST) {
+      const moduleId = BOOK_MODULES[code];
+      if (moduleId === undefined) continue;
+      let book: EgwBook;
+      try {
+        book = await loadJsonAsset<EgwBook>(moduleId);
+      } catch {
+        // Skip a book that genuinely fails to load rather than aborting every other
+        // book's migration. Since the top-of-function check only reruns this whole
+        // migration while egw_chapters is completely empty, a book that fails here stays
+        // missing rather than being retried on a later launch — acceptable since these are
+        // bundled assets that should always be present.
+        continue;
+      }
+      for (let i = 0; i < book.chapters.length; i += INSERT_BATCH_SIZE) {
+        const chunk = book.chapters.slice(i, i + INSERT_BATCH_SIZE);
+        const placeholders = chunk.map(() => '(?,?,?,?,?)').join(',');
+        const params = chunk.flatMap((c) => [code, title, c.number, c.title, c.content]);
+        await db.runAsync(
+          `INSERT INTO egw_chapters (book_code, book_title, chapter_number, chapter_title, content) VALUES ${placeholders}`,
+          params
+        );
+      }
+    }
+  });
 }
 
-export function getEgwBook(code: string): Promise<EgwBook | undefined> {
-  return loadBook(code);
+export async function getEgwBook(db: SQLiteDatabase, code: string): Promise<EgwBook | undefined> {
+  const meta = EGW_BOOK_LIST.find((b) => b.code === code);
+  if (!meta) return undefined;
+  const rows = await db.getAllAsync<{ chapter_number: number; chapter_title: string; content: string }>(
+    'SELECT chapter_number, chapter_title, content FROM egw_chapters WHERE book_code = ? ORDER BY chapter_number',
+    code
+  );
+  if (rows.length === 0) return undefined;
+  return {
+    code,
+    title: meta.title,
+    author: 'Ellen G. White',
+    chapters: rows.map((r) => ({ number: r.chapter_number, title: r.chapter_title, content: r.content })),
+  };
 }
 
-export async function getEgwChapter(code: string, number: number): Promise<EgwChapter | undefined> {
-  const book = await loadBook(code);
-  return book?.chapters.find((c) => c.number === number);
-}
-
-// The AI search index builder (database/searchIndex.ts) walks every book once to index
-// it — unlike normal reading, which only ever touches one book at a time — so it clears
-// the cache behind it afterward rather than leaving all ~48 books resident in memory.
-export function clearEgwCache(): void {
-  for (const key of Object.keys(BOOK_DATA)) delete BOOK_DATA[key];
+export async function getEgwChapter(db: SQLiteDatabase, code: string, number: number): Promise<EgwChapter | undefined> {
+  const row = await db.getFirstAsync<{ chapter_title: string; content: string }>(
+    'SELECT chapter_title, content FROM egw_chapters WHERE book_code = ? AND chapter_number = ?',
+    code,
+    number
+  );
+  return row ? { number, title: row.chapter_title, content: row.content } : undefined;
 }

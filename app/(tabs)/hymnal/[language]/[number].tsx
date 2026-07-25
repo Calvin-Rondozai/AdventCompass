@@ -27,7 +27,7 @@ export default function HymnDetailScreen() {
   const goToHymn = useCallback(
     (target: number | undefined) => {
       if (!target) return;
-      router.replace({ pathname: '/more/hymnal/[language]/[number]', params: { language: lang, number: String(target) } });
+      router.replace({ pathname: '/hymnal/[language]/[number]', params: { language: lang, number: String(target) } });
     },
     [lang]
   );

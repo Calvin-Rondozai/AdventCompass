@@ -27,7 +27,7 @@ export function HymnNumberJump({ language, replaceNavigation }: Props) {
     setVisible(false);
     setNumberInput('');
     setError(false);
-    const dest = { pathname: '/more/hymnal/[language]/[number]' as const, params: { language, number: String(num) } };
+    const dest = { pathname: '/hymnal/[language]/[number]' as const, params: { language, number: String(num) } };
     if (replaceNavigation) router.replace(dest);
     else router.push(dest);
   };

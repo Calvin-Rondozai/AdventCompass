@@ -84,7 +84,7 @@ export default function PrayerListScreen() {
           const isAnswered = item.status === 'answered';
           return (
             <PressableScale
-              onPress={() => router.push({ pathname: '/prayer/[id]', params: { id: String(item.id) } })}
+              onPress={() => router.push({ pathname: '/more/prayer/[id]', params: { id: String(item.id) } })}
               scaleTo={0.99}
             >
               <View
@@ -127,7 +127,7 @@ export default function PrayerListScreen() {
       />
 
       <PressableScale
-        onPress={() => router.push({ pathname: '/prayer/[id]', params: { id: 'new' } })}
+        onPress={() => router.push({ pathname: '/more/prayer/[id]', params: { id: 'new' } })}
         style={{ position: 'absolute', right: theme.spacing.lg, bottom: theme.spacing.lg }}
       >
         <View

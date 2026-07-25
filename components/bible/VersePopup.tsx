@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BackHandler, Pressable, StyleSheet, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -57,9 +57,15 @@ export function VersePopup({ reference, onClose }: { reference: VerseRef; onClos
       style={[StyleSheet.absoluteFill, { zIndex: 1000, elevation: 1000 }]}
     >
       <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' }} onPress={onClose}>
-        <Pressable
+        {/* Plain View, not a nested Pressable — a Pressable here competes with the
+            ScrollView below for the touch responder and can swallow its drag gesture,
+            which is what made the verse list unscrollable. onStartShouldSetResponder
+            still blocks a tap from falling through to the backdrop's onClose. */}
+        <View
+          onStartShouldSetResponder={() => true}
           style={{
             width: '86%',
+            maxHeight: '80%',
             backgroundColor: theme.colors.background,
             borderRadius: theme.radius.lg,
             padding: theme.spacing.lg,
@@ -79,9 +85,16 @@ export function VersePopup({ reference, onClose }: { reference: VerseRef; onClos
             </PressableScale>
           </View>
           {verses.length > 0 ? (
-            <Body style={{ fontFamily: theme.fontFamily.serifRegular, fontSize: theme.fontSize.md, lineHeight: theme.lineHeight.lg }}>
-              {verses.map((v) => v.text).join(' ')}
-            </Body>
+            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator>
+              <Body style={{ fontFamily: theme.fontFamily.serifRegular, fontSize: theme.fontSize.md, lineHeight: theme.lineHeight.lg }}>
+                {verses.map((v) => (
+                  <Body key={v.id}>
+                    <Body style={{ fontFamily: theme.fontFamily.sansSemiBold, color: theme.colors.primary }}>{v.verse}. </Body>
+                    {v.text}{' '}
+                  </Body>
+                ))}
+              </Body>
+            </ScrollView>
           ) : (
             <Body style={{ color: theme.colors.textMuted }}>Loading…</Body>
           )}
@@ -102,7 +115,7 @@ export function VersePopup({ reference, onClose }: { reference: VerseRef; onClos
               <ArrowRight size={14} color={theme.colors.primary} />
             </View>
           </PressableScale>
-        </Pressable>
+        </View>
       </Pressable>
       <TranslationSheet
         visible={showVersionSheet}

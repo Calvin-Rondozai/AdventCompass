@@ -18,7 +18,7 @@ export default function HymnalLanguagesScreen() {
         {HYMNALS.map((hymnal) => (
           <PressableScale
             key={hymnal.code}
-            onPress={() => router.push({ pathname: '/more/hymnal/[language]', params: { language: hymnal.code } })}
+            onPress={() => router.push({ pathname: '/hymnal/[language]', params: { language: hymnal.code } })}
             scaleTo={0.99}
           >
             <View

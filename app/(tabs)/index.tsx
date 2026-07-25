@@ -217,7 +217,7 @@ export default function HomeDashboard() {
                         setBurst({ type, nonce });
                         setTimeout(() => setBurst((b) => (b?.nonce === nonce ? null : b)), 900);
                       }
-                      if (mode === 'increment') habits.exercise();
+                      if (mode === 'increment') habits.toggleExerciseDone();
                       else habits.toggle(type);
                     }}
                     scaleTo={0.98}
@@ -374,7 +374,7 @@ export default function HomeDashboard() {
                   justifyContent: 'center',
                 }}
               >
-                <Sparkles size={20} color={theme.colors.accent} strokeWidth={1.75} />
+                <HeartHandshake size={20} color={theme.colors.accent} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
                 <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>Devotions</Body>

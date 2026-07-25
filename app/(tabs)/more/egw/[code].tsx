@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { FlatList, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
 import { ChevronRight, Search } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
@@ -12,20 +13,28 @@ import { Body, Label } from '@/components/ui/Typography';
 export default function EgwChapterListScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
+  const db = useSQLiteContext();
   const { code } = useLocalSearchParams<{ code: string }>();
   const [book, setBook] = useState<EgwBook | undefined>(undefined);
+  const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState('');
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setBook(undefined);
-    getEgwBook(code ?? '').then((b) => {
-      if (!cancelled) setBook(b);
-    });
+    setFailed(false);
+    getEgwBook(db, code ?? '')
+      .then((b) => {
+        if (!cancelled) setBook(b);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
     return () => {
       cancelled = true;
     };
-  }, [code]);
+  }, [db, code, retryToken]);
 
   const chapters = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -36,6 +45,19 @@ export default function EgwChapterListScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({ title: book?.title ?? '' });
   }, [navigation, book]);
+
+  if (failed) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.lg }}>
+        <Body style={{ color: theme.colors.textMuted, textAlign: 'center', marginBottom: theme.spacing.md }}>
+          This book couldn't be loaded.
+        </Body>
+        <PressableScale onPress={() => setRetryToken((n) => n + 1)}>
+          <Body style={{ color: theme.colors.primary, fontFamily: theme.fontFamily.sansSemiBold }}>Try again</Body>
+        </PressableScale>
+      </SafeAreaView>
+    );
+  }
 
   if (!book) return null;
 

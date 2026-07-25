@@ -1,5 +1,5 @@
 import { Tabs, usePathname } from 'expo-router';
-import { BookOpen, Home, MoreHorizontal, NotebookPen, HeartHandshake } from '@/components/ui/Icon';
+import { BookOpen, Home, MoreHorizontal, Music, NotebookPen } from '@/components/ui/Icon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme/ThemeProvider';
 import { useTabBarVisibility } from '@/hooks/useTabBarVisibility';
@@ -73,11 +73,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="prayer"
+        name="hymnal"
         options={{
-          title: 'Prayer',
+          title: 'Hymnal',
           tabBarIcon: ({ focused, color }) => (
-            <AnimatedTabIcon Icon={HeartHandshake} focused={focused} color={color as string} dotColor={theme.colors.primary} />
+            <AnimatedTabIcon Icon={Music} focused={focused} color={color as string} dotColor={theme.colors.primary} />
           ),
         }}
       />

@@ -75,13 +75,13 @@ export default function HealthScreen() {
   );
 
   const handleDrinkWater = async () => {
-    const next = await addWater(db, date, 250);
+    const next = await addWater(db, date, 250, waterGoal);
     setWaterMl(next);
     refresh();
   };
 
   const handleRemoveWater = async () => {
-    const next = await addWater(db, date, -250);
+    const next = await addWater(db, date, -250, waterGoal);
     setWaterMl(next);
     refresh();
   };

@@ -97,19 +97,28 @@ export function useHabits() {
   );
 
   const drinkWater = useCallback(async () => {
-    await addWater(db, date, WATER_STEP_ML);
+    await addWater(db, date, WATER_STEP_ML, waterGoalMl);
     await refresh();
-  }, [db, date, refresh]);
+  }, [db, date, waterGoalMl, refresh]);
 
   const undoWater = useCallback(async () => {
-    await addWater(db, date, -WATER_STEP_ML);
+    await addWater(db, date, -WATER_STEP_ML, waterGoalMl);
     await refresh();
-  }, [db, date, refresh]);
+  }, [db, date, waterGoalMl, refresh]);
 
   const exercise = useCallback(async () => {
     await addExercise(db, date, EXERCISE_STEP_MIN, exerciseGoalMin);
     await refresh();
   }, [db, date, exerciseGoalMin, refresh]);
+
+  // Dashboard quick-tick: one tap fully completes (or un-completes) the day's goal,
+  // instead of requiring EXERCISE_GOAL_MIN/EXERCISE_STEP_MIN taps to cross the goal.
+  const toggleExerciseDone = useCallback(async () => {
+    const isDone = exerciseMin >= exerciseGoalMin;
+    const delta = isDone ? -exerciseMin : exerciseGoalMin - exerciseMin;
+    await addExercise(db, date, delta, exerciseGoalMin);
+    await refresh();
+  }, [db, date, exerciseMin, exerciseGoalMin, refresh]);
 
   return {
     loading,
@@ -125,5 +134,6 @@ export function useHabits() {
     drinkWater,
     undoWater,
     exercise,
+    toggleExerciseDone,
   };
 }

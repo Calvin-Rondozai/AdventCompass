@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getKv, setKv } from './kv';
-import { EGW_BOOK_LIST, getEgwBook, clearEgwCache } from './egwBooks';
+import { EGW_BOOK_LIST, getEgwBook } from './egwBooks';
 import { COMMENTARY_VOLUMES, getCommentaryVolume, clearCommentaryCache } from './sdaCommentary';
 import { HYMNALS, getHymns, clearHymnCache } from './hymnal';
 import { DEVOTIONALS } from './devotionals';
@@ -93,7 +93,7 @@ async function buildSearchIndex(db: SQLiteDatabase, onProgress?: (label: string)
     for (let i = 0; i < EGW_BOOK_LIST.length; i++) {
       const { code, title } = EGW_BOOK_LIST[i];
       onProgress?.(`${title} (${i + 1}/${EGW_BOOK_LIST.length})`);
-      const book = await getEgwBook(code);
+      const book = await getEgwBook(db, code);
       if (!book) continue;
       for (const chapter of book.chapters) {
         const rows: Row[] = chunkText(chapter.content).map((chunk, idx) => [
@@ -105,7 +105,6 @@ async function buildSearchIndex(db: SQLiteDatabase, onProgress?: (label: string)
         await insertBatched(db, rows, buffer);
       }
     }
-    clearEgwCache();
 
     for (const { code, title } of COMMENTARY_VOLUMES) {
       onProgress?.(title);

@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 14;
 
 export const CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS bible (
@@ -69,6 +69,19 @@ CREATE TABLE IF NOT EXISTS highlights (
   created_date TEXT NOT NULL
 );
 
+-- Ellen G. White book content, loaded once from the bundled .datjson assets (see
+-- database/egwBooks.ts) instead of being re-read from those assets on every open —
+-- SQLite is both faster and doesn't depend on expo-asset's copy-to-cache step succeeding
+-- every single time a book is opened.
+CREATE TABLE IF NOT EXISTS egw_chapters (
+  id INTEGER PRIMARY KEY NOT NULL,
+  book_code TEXT NOT NULL,
+  book_title TEXT NOT NULL,
+  chapter_number INTEGER NOT NULL,
+  chapter_title TEXT NOT NULL,
+  content TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS egw_highlights (
   id INTEGER PRIMARY KEY NOT NULL,
   book TEXT NOT NULL,
@@ -108,12 +121,18 @@ CREATE TABLE IF NOT EXISTS sabbath_answers (
   updated_date TEXT NOT NULL
 );
 
+-- start_word/end_word address the specific words highlighted within block_index (so a
+-- highlight can cover the section the user picked, not the whole paragraph); -1/-1 marks
+-- a legacy whole-block highlight from before word ranges existed. A block can now have
+-- more than one range, so there's no longer a uniqueness constraint per block_index.
 CREATE TABLE IF NOT EXISTS sabbath_highlights (
   id INTEGER PRIMARY KEY NOT NULL,
   quarter_id TEXT NOT NULL,
   week INTEGER NOT NULL,
   day INTEGER NOT NULL,
   block_index INTEGER NOT NULL,
+  start_word INTEGER NOT NULL DEFAULT -1,
+  end_word INTEGER NOT NULL DEFAULT -1,
   color TEXT NOT NULL,
   created_date TEXT NOT NULL
 );
@@ -134,6 +153,7 @@ CREATE INDEX IF NOT EXISTS idx_bible_lookup ON bible (translation, book, chapter
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmarks_verse ON bookmarks (book, chapter, verse);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_highlights_verse ON highlights (book, chapter, verse);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_egw_highlights_para ON egw_highlights (book, chapter, paragraph);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_egw_chapters_lookup ON egw_chapters (book_code, chapter_number);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_sabbath_answers_block ON sabbath_answers (quarter_id, week, day, block_index);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_sabbath_highlights_block ON sabbath_highlights (quarter_id, week, day, block_index);
+CREATE INDEX IF NOT EXISTS idx_sabbath_highlights_lookup ON sabbath_highlights (quarter_id, week, day, block_index);
 `;
