@@ -6,7 +6,14 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { Info, Sparkles, Download, ArrowUp, Link2 } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
-import { downloadModel, hasModel, DownloadProgress } from '@/services/aiModel';
+import {
+  describeDownloadError,
+  downloadModel,
+  getLastDownloadProgress,
+  hasModel,
+  isDownloadingModel,
+  DownloadProgress,
+} from '@/services/aiModel';
 import { AI_INFERENCE_AVAILABLE, askAssistant, ChatMessage, resetConversation } from '@/services/aiAssistant';
 import { ensureSearchIndexBuilt, resolveSourceLink, SearchChunk } from '@/database/searchIndex';
 import { showAlert } from '@/components/ui/AppAlert';
@@ -174,8 +181,8 @@ export default function AIAssistantScreen() {
   const navigation = useNavigation();
   const db = useSQLiteContext();
   const [modelReady, setModelReady] = useState(() => hasModel());
-  const [downloading, setDownloading] = useState(false);
-  const [progress, setProgress] = useState<DownloadProgress | null>(null);
+  const [downloading, setDownloading] = useState(() => isDownloadingModel());
+  const [progress, setProgress] = useState<DownloadProgress | null>(() => getLastDownloadProgress());
   const [messages, setMessages] = useState<(ChatMessage & { at: number })[]>([{ ...GREETING, at: Date.now() }]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -245,6 +252,29 @@ export default function AIAssistantScreen() {
     requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
   }, [messages, sending, streamingText]);
 
+  // downloadModel() now runs as a module-level singleton (see services/aiModel.ts) so it
+  // keeps downloading in the background if this screen unmounts — e.g. the user switches to
+  // another tab mid-download. If a download is already in flight when this screen (re)mounts,
+  // this joins it (attaching setProgress as a listener) instead of leaving the UI stuck
+  // showing the initial "Download" button while a download is silently still running.
+  useEffect(() => {
+    if (!isDownloadingModel()) return;
+    let cancelled = false;
+    downloadModel(setProgress)
+      .then(() => {
+        if (!cancelled) setModelReady(true);
+      })
+      .catch((error) => {
+        if (!cancelled) showAlert('Download failed', describeDownloadError(error));
+      })
+      .finally(() => {
+        if (!cancelled) setDownloading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleDownload = async () => {
     setDownloading(true);
     try {
@@ -253,11 +283,10 @@ export default function AIAssistantScreen() {
     } catch (error) {
       // downloadModel already cleans up a partial file — leave modelReady false so the
       // button reappears for a retry. This used to fail completely silently (no message
-      // at all), which is indistinguishable from the button just not working — showing
-      // the actual error (network unreachable, host blocked, timeout, etc.) at least
-      // tells the user why, instead of a silent no-op.
-      const message = error instanceof Error ? error.message : String(error);
-      showAlert('Download failed', `Couldn't download the AI model: ${message}\n\nCheck your connection and try again.`);
+      // at all, indistinguishable from the button just not working) and then showed the
+      // raw native exception text — describeDownloadError maps the common cases (no
+      // connection, timeout) to plain language instead.
+      showAlert('Download failed', describeDownloadError(error));
     } finally {
       setDownloading(false);
     }

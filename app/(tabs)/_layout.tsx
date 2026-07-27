@@ -18,10 +18,11 @@ export default function TabsLayout() {
   // reader) still goes through the context since that's genuinely gesture-driven, not
   // route-driven.
   const hiddenForMoreSubscreen = pathname.startsWith('/more') && pathname !== '/more';
-  // A hymn's own reading screen ("/hymnal/en/123") should hide the bar the same way a More
-  // sub-screen does; the language list ("/hymnal/en") and hymnal home ("/hymnal") keep it.
+  // Both the per-language hymn list ("/hymnal/en") and an individual hymn's reading screen
+  // ("/hymnal/en/123") hide the bar the same way a More sub-screen does; only the language
+  // picker itself ("/hymnal") keeps it.
   const hymnalSegments = pathname.startsWith('/hymnal/') ? pathname.split('/').filter(Boolean) : [];
-  const hiddenForHymnDetail = hymnalSegments.length >= 3;
+  const hiddenForHymnDetail = hymnalSegments.length >= 2;
   const visible = scrollVisible && !hiddenForMoreSubscreen && !hiddenForHymnDetail;
   // The system nav bar (3-button or gesture pill) sits below the screen's safe area —
   // insets.bottom already accounts for either case, so add it on top of our own
