@@ -1,5 +1,5 @@
 import { Asset } from 'expo-asset';
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
 
 const cache = new Map<number, Promise<unknown>>();
 
@@ -18,7 +18,7 @@ export function loadJsonAsset<T>(moduleId: number): Promise<T> {
   const promise = (async () => {
     const asset = Asset.fromModule(moduleId);
     await asset.downloadAsync();
-    const text = await FileSystem.readAsStringAsync(asset.localUri ?? asset.uri);
+    const text = await new File(asset.localUri ?? asset.uri).text();
     return JSON.parse(text);
   })().catch((err) => {
     cache.delete(moduleId);

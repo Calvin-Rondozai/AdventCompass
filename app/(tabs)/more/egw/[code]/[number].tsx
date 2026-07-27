@@ -9,6 +9,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { EgwBook, getEgwBook } from '@/database/egwBooks';
 import { getEgwHighlightsForChapter, toggleEgwHighlightColor } from '@/database/egwHighlights';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_HEX, HighlightColor } from '@/database/highlights';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body, Heading, Label } from '@/components/ui/Typography';
 
@@ -34,6 +35,13 @@ function renderPageMarkers(text: string, mutedColor: string) {
 // should be..." — render that lead-in bold like the original print, instead of running
 // it into the paragraph as plain text.
 const SUBTITLE_RE = /^([A-Z][A-Za-z0-9,'".:;() ]{2,80}?)--(.+)$/s;
+
+// Printed books signal a new paragraph with a first-line indent, not blog-style vertical
+// gaps between blocks — React Native's Text has no `textIndent`, so a short run of
+// non-breaking spaces at the start of the line is the standard workaround. The very first
+// paragraph of a chapter (and any subtitled lead-in, which already reads as its own block)
+// stays flush, matching how printed books never indent the opening paragraph either.
+const PARAGRAPH_INDENT = '      ';
 
 function renderParagraph(text: string, mutedColor: string, boldFont: string) {
   const m = text.match(SUBTITLE_RE);
@@ -167,16 +175,24 @@ export default function EgwChapterReaderScreen() {
     );
   }
 
-  if (!book || !chapter) return null;
+  if (!book || !chapter) return <PageLoader />;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>
       <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}>
-        <Label style={{ marginBottom: 4 }}>Chapter {chapter.number}</Label>
-        <Heading style={{ marginBottom: theme.spacing.md }}>{chapter.title}</Heading>
+        <View style={{ alignItems: 'center', marginBottom: theme.spacing.lg }}>
+          <Label style={{ marginBottom: 4, letterSpacing: 1 }}>CHAPTER {chapter.number}</Label>
+          <Heading style={{ textAlign: 'center' }}>{chapter.title}</Heading>
+          <View style={{ width: 48, height: 2, borderRadius: 1, backgroundColor: theme.colors.border, marginTop: theme.spacing.sm }} />
+        </View>
         {paragraphs.map((para, i) => {
           const color = highlights.get(i);
           const isSelected = selected.has(i);
+          // Printed books indent every paragraph after the first to mark a new one, rather
+          // than a blog-style gap between blocks — a subtitled lead-in ("The Child's First
+          // Textbook--...") already reads as its own block via renderParagraph's bold lead,
+          // so it stays flush like the opening paragraph does.
+          const showIndent = i > 0 && !SUBTITLE_RE.test(para);
           return (
             <PressableScale
               key={i}
@@ -190,11 +206,11 @@ export default function EgwChapterReaderScreen() {
                   borderRadius: theme.radius.sm,
                   borderWidth: isSelected ? 2 : 0,
                   borderColor: theme.colors.primary,
-                  marginBottom: theme.spacing.sm,
                   padding: color || isSelected ? theme.spacing.xs : 0,
                 }}
               >
                 <Body
+                  selectable
                   style={{
                     fontFamily: theme.fontFamily.serifRegular,
                     fontSize: theme.fontSize.md,
@@ -202,6 +218,7 @@ export default function EgwChapterReaderScreen() {
                     textAlign: 'justify',
                   }}
                 >
+                  {showIndent ? PARAGRAPH_INDENT : ''}
                   {renderParagraph(para, theme.colors.textFaint, theme.fontFamily.serifBold)}
                 </Body>
               </View>

@@ -7,6 +7,7 @@ import { ChevronRight, Search } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { EgwBook, getEgwBook } from '@/database/egwBooks';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body, Label } from '@/components/ui/Typography';
 
@@ -59,7 +60,7 @@ export default function EgwChapterListScreen() {
     );
   }
 
-  if (!book) return null;
+  if (!book) return <PageLoader />;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>

@@ -142,7 +142,7 @@ export async function loadEgwBooksIfNeeded(db: SQLiteDatabase): Promise<void> {
         const placeholders = chunk.map(() => '(?,?,?,?,?)').join(',');
         const params = chunk.flatMap((c) => [code, title, c.number, c.title, c.content]);
         await db.runAsync(
-          `INSERT INTO egw_chapters (book_code, book_title, chapter_number, chapter_title, content) VALUES ${placeholders}`,
+          `INSERT OR IGNORE INTO egw_chapters (book_code, book_title, chapter_number, chapter_title, content) VALUES ${placeholders}`,
           params
         );
       }

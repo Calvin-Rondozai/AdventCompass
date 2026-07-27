@@ -2,7 +2,7 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { hasModel } from './aiModel';
 import { answerFromContext, ConversationTurn } from './llm';
-import { ensureSearchIndexBuilt, searchContent } from '@/database/searchIndex';
+import { ensureSearchIndexBuilt, searchContent, SearchChunk } from '@/database/searchIndex';
 import { getVerseRange } from '@/database/bible';
 import { findScriptureRefs } from '@/database/scriptureRefs';
 import { getKv } from '@/database/kv';
@@ -13,7 +13,7 @@ import { DEFAULT_TRANSLATION } from '@/database/translations';
 // native-module feature.
 export const AI_INFERENCE_AVAILABLE = Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
 
-export type ChatMessage = { id: string; role: 'user' | 'assistant'; text: string };
+export type ChatMessage = { id: string; role: 'user' | 'assistant'; text: string; sources?: SearchChunk[] };
 
 // Bumped back up from 2: with retrieval quality fixed (title weighting, source-rank
 // penalty, jesus/christ synonym), the limiting factor on answer quality is now more
@@ -93,7 +93,11 @@ async function directVerseLookup(question: string, db: SQLiteDatabase): Promise<
 
 export type AssistantCallbacks = {
   onToken?: (partialText: string) => void; // live text of whichever section is currently generating
-  onSection?: (sectionText: string) => void; // fires once per finished section — push each as its own chat message
+  // fires once per finished section — push each as its own chat message. `sources` is the
+  // retrieved chunks backing this whole answer (same set for every section of one question),
+  // attached only to the last section so the UI shows one "Sources" row per answer, not one
+  // per section.
+  onSection?: (sectionText: string, sources?: SearchChunk[]) => void;
 };
 
 // Recent real Q&A turns (not greetings or direct verse lookups — those aren't the kind
@@ -142,7 +146,6 @@ export async function askAssistant(question: string, db: SQLiteDatabase, callbac
     ? `${conversationHistory[conversationHistory.length - 1].question} ${question}`
     : question;
   const chunks = await searchContent(db, searchQuery, SEARCH_RESULT_LIMIT);
-  const sourcesFooter = chunks.length ? `Sources:\n${chunks.map((c, i) => `[${i + 1}] ${c.title}`).join('\n')}` : '';
 
   const rawSections: string[] = [];
   await answerFromContext(
@@ -156,8 +159,7 @@ export async function askAssistant(question: string, db: SQLiteDatabase, callbac
         // sure the user is never shown a bare "Sources" list with no answer above it.
         const sectionText = rawSectionText.trim() || "I couldn't find a clear answer in the app's content for that — try rephrasing your question.";
         rawSections.push(sectionText);
-        const text = isLast && sourcesFooter ? `${sectionText}\n\n${sourcesFooter}` : sectionText;
-        callbacks?.onSection?.(text);
+        callbacks?.onSection?.(sectionText, isLast && chunks.length ? chunks : undefined);
       },
     },
     conversationHistory

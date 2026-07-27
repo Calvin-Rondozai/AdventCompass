@@ -9,6 +9,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { getReadingPlan, ReadingPlan } from '@/database/readingPlans';
 import { deleteCustomPlan, getCustomPlans } from '@/database/customReadingPlans';
 import { getKv, setKv } from '@/database/kv';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { TrophyCelebration } from '@/components/ui/TrophyCelebration';
@@ -81,7 +82,7 @@ export default function ReadingPlanDetailScreen() {
     [db, kvKey, plan]
   );
 
-  if (!plan) return null;
+  if (!plan) return <PageLoader />;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>

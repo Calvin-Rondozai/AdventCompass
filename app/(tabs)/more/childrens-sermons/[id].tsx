@@ -8,6 +8,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { getChildrensSermon } from '@/database/childrensSermons';
 import { findScriptureRefs } from '@/database/scriptureRefs';
 import { VersePopup, VerseRef } from '@/components/bible/VersePopup';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { Body, Heading, Label } from '@/components/ui/Typography';
 
 // Stage directions like "[Pass out and read resolutions]" are kept inline in the source —
@@ -37,7 +38,7 @@ export default function ChildrensSermonScreen() {
     navigation.setOptions({ title: sermon?.title ?? 'Children’s Sermon' });
   }, [navigation, sermon]);
 
-  if (!sermon) return null;
+  if (!sermon) return <PageLoader />;
 
   const paragraphs = sermon.body.split(/\n\n+/).filter((p) => p.trim().length > 0);
   const scriptureMatch = findScriptureRefs(sermon.scriptureRef)[0];

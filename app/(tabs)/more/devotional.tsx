@@ -1,5 +1,5 @@
-import React, { useLayoutEffect, useMemo } from 'react';
-import { ScrollView, View } from 'react-native';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
+import { BackHandler, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useNavigation } from 'expo-router';
 import { ArrowLeft, Sunrise, Moon, ChevronRight, HeartHandshake } from '@/components/ui/Icon';
@@ -19,22 +19,33 @@ export default function DevotionsScreen() {
   const eveningPrompt = getPromptOfDay(EVENING_PROMPTS);
   const parsedRef = useMemo(() => parseReference(devotional.reference), [devotional.reference]);
 
+  const goBack = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/more');
+  }, []);
+
   // Reached both from the More menu (which has this screen underneath in its own
   // stack) and directly from the Home tab's teaser card (a cross-tab push, which
   // lands here with no screen beneath it in the More stack) — the default back
-  // button only covers the first case, so provide one explicitly for both.
+  // button only covers the first case, so provide one explicitly for both. The
+  // hardware back button is wired to the same goBack() so it always matches the arrow.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      goBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [goBack]);
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerLeft: () => (
-        <PressableScale
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/more'))}
-          style={{ padding: theme.spacing.xs }}
-        >
+        <PressableScale onPress={goBack} style={{ padding: theme.spacing.xs }}>
           <ArrowLeft size={22} color={theme.colors.text} strokeWidth={2} />
         </PressableScale>
       ),
     });
-  }, [navigation, theme]);
+  }, [navigation, theme, goBack]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>

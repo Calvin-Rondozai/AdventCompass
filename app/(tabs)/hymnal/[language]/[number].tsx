@@ -8,6 +8,7 @@ import { runOnJS } from 'react-native-reanimated';
 import { useTheme } from '@/theme/ThemeProvider';
 import { getHymn, HymnalLanguage } from '@/database/hymnal';
 import { HymnNumberJump } from '@/components/bible/HymnNumberJump';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { Body, Heading } from '@/components/ui/Typography';
 
 export default function HymnDetailScreen() {
@@ -44,7 +45,7 @@ export default function HymnDetailScreen() {
       }
     });
 
-  if (!hymn) return null;
+  if (!hymn) return <PageLoader />;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>

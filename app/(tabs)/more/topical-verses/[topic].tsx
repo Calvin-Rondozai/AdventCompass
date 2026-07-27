@@ -9,6 +9,7 @@ import { TOPICS, TopicalVerseRef } from '@/database/topicalVerses';
 import { getVerseRange } from '@/database/bible';
 import { getLocalizedBookName } from '@/database/bookNames';
 import { useBibleTranslation } from '@/hooks/useBibleTranslation';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body, Label } from '@/components/ui/Typography';
 
@@ -43,7 +44,7 @@ export default function TopicalVerseListScreen() {
     };
   }, [db, translation, topic]);
 
-  if (!topic) return null;
+  if (!topic) return <PageLoader />;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>

@@ -56,13 +56,20 @@ export function VersePopup({ reference, onClose }: { reference: VerseRef; onClos
       exiting={FadeOut.duration(150)}
       style={[StyleSheet.absoluteFill, { zIndex: 1000, elevation: 1000 }]}
     >
-      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' }} onPress={onClose}>
-        {/* Plain View, not a nested Pressable — a Pressable here competes with the
-            ScrollView below for the touch responder and can swallow its drag gesture,
-            which is what made the verse list unscrollable. onStartShouldSetResponder
-            still blocks a tap from falling through to the backdrop's onClose. */}
+      {/* Backdrop and card are SIBLINGS, not nested — this is the actual fix for the
+          scrolling glitch. Nesting the card inside the backdrop Pressable meant something on
+          the card (a responder prop, an inner Pressable, or selectable text) always had to
+          intercept the touch to stop it bubbling up to the backdrop's onPress — and every
+          one of those interception mechanisms competes with the ScrollView's own native
+          scroll-gesture recognizer for the same drag, especially on Android. As siblings,
+          native hit-testing finds whichever one is topmost at the touch point directly; the
+          card's own Views never need to claim or block anything, so the ScrollView inside it
+          gets an untouched, uncontested drag gesture. */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }} />
+      </Pressable>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }} pointerEvents="box-none">
         <View
-          onStartShouldSetResponder={() => true}
           style={{
             width: '86%',
             maxHeight: '80%',
@@ -85,8 +92,23 @@ export function VersePopup({ reference, onClose }: { reference: VerseRef; onClos
             </PressableScale>
           </View>
           {verses.length > 0 ? (
-            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator>
-              <Body style={{ fontFamily: theme.fontFamily.serifRegular, fontSize: theme.fontSize.md, lineHeight: theme.lineHeight.lg }}>
+            // flexShrink (not a fixed maxHeight) so this only shrinks as far as it actually
+            // needs to within the card's own maxHeight: '80%' cap — a long verse range now
+            // reliably scrolls within whatever room is left after the header/button rows,
+            // instead of being bound to one hardcoded number that could clip content the
+            // fixed height didn't account for. minHeight: 0 is required alongside flexShrink —
+            // a flex item's default min-height is its own content size, which silently
+            // overrides flexShrink and was why this still rendered at full (unscrollable,
+            // overflowing) height without it.
+            <ScrollView style={{ flexShrink: 1, minHeight: 0 }} showsVerticalScrollIndicator>
+              {/* selectable turns on the platform's native text selection — long-press to
+                  drag selection handles and get the native copy/share menu, the same way
+                  selecting text works in a browser, instead of the custom word-tap
+                  highlighting scheme used elsewhere in the app (Sabbath School, EGW). */}
+              <Body
+                selectable
+                style={{ fontFamily: theme.fontFamily.serifRegular, fontSize: theme.fontSize.md, lineHeight: theme.lineHeight.lg }}
+              >
                 {verses.map((v) => (
                   <Body key={v.id}>
                     <Body style={{ fontFamily: theme.fontFamily.sansSemiBold, color: theme.colors.primary }}>{v.verse}. </Body>
@@ -116,7 +138,7 @@ export function VersePopup({ reference, onClose }: { reference: VerseRef; onClos
             </View>
           </PressableScale>
         </View>
-      </Pressable>
+      </View>
       <TranslationSheet
         visible={showVersionSheet}
         selected={translation}

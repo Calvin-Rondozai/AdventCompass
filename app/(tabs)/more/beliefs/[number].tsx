@@ -8,6 +8,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { getFundamentalBelief, getFundamentalBeliefs } from '@/database/fundamentalBeliefs';
 import { findScriptureRefs } from '@/database/scriptureRefs';
 import { VersePopup, VerseRef } from '@/components/bible/VersePopup';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body, Heading, Label } from '@/components/ui/Typography';
 
@@ -48,7 +49,7 @@ export default function BeliefDetailScreen() {
     navigation.setOptions({ title: 'Fundamental Beliefs' });
   }, [navigation]);
 
-  if (!belief) return null;
+  if (!belief) return <PageLoader />;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>

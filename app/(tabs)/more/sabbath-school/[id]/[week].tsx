@@ -12,6 +12,7 @@ import { getSabbathAnswers, saveSabbathAnswer } from '@/database/sabbathAnswers'
 import { addSabbathHighlight, getSabbathHighlights, removeSabbathHighlight, SabbathHighlight } from '@/database/sabbathHighlights';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_HEX, HighlightColor } from '@/database/highlights';
 import { VersePopup, VerseRef } from '@/components/bible/VersePopup';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { Collapsible } from '@/components/sabbath/Collapsible';
 import { DiscussionQuestionCard } from '@/components/sabbath/DiscussionQuestionCard';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -237,7 +238,7 @@ export default function SabbathLessonReaderScreen() {
     [db, quarter, lesson, activeDay, pending, clearSelection]
   );
 
-  if (!lesson) return null;
+  if (!lesson) return <PageLoader />;
 
   const renderBlock = (block: SabbathDay['blocks'][number], index: number) => {
     if (block.type === 'question') {
@@ -299,6 +300,7 @@ export default function SabbathLessonReaderScreen() {
             </Body>
           )}
           <Body
+            selectable
             style={{
               fontFamily: theme.fontFamily.serifItalic,
               fontSize: theme.fontSize.base,
@@ -315,6 +317,7 @@ export default function SabbathLessonReaderScreen() {
     return (
       <Body
         key={index}
+        selectable
         style={{
           fontFamily: theme.fontFamily.serifRegular,
           fontSize: theme.fontSize.md,
@@ -359,7 +362,8 @@ export default function SabbathLessonReaderScreen() {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm, gap: theme.spacing.sm }}
+        style={{ flexGrow: 0 }}
+        contentContainerStyle={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.xs, paddingBottom: theme.spacing.xs, gap: theme.spacing.sm }}
       >
         {lesson.days.map((day, i) => (
           <PressableScale
@@ -394,6 +398,15 @@ export default function SabbathLessonReaderScreen() {
 
       <FlatList
         ref={listRef}
+        // Without an explicit flex, this horizontal FlatList has no deterministic height to
+        // lay out against — it was sizing itself off an initial measurement pass of its first
+        // rendered day (a nested vertical ScrollView with no height of its own either), then
+        // re-laying-out once that settled. That's exactly the "blank space that appears then
+        // disappears" seen the first time a lesson opens, and the same missing height is what
+        // let the gap above it read as bigger than the pill row's own (now-tightened) padding
+        // would suggest. flex: 1 makes it claim all remaining vertical space immediately, on
+        // the very first frame, so there's nothing left to settle into.
+        style={{ flex: 1 }}
         data={lesson.days}
         keyExtractor={(d) => String(d.day)}
         horizontal

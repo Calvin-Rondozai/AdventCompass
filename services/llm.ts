@@ -17,12 +17,15 @@ function getContext(): Promise<LlamaContext> {
     contextPromise = initLlama({
       model: getModelPath(),
       // Sized for this app's actual worst case, not a round number: system prompt (~90
-      // tokens) + 3 excerpts (~550 chars/~140 tokens each) + question, times up to
-      // MAX_SECTIONS continuation turns (each re-sends the growing conversation) tops
-      // out around 2,200-2,600 tokens. 2048 would risk context_full mid-answer on a
-      // multi-section response; 4096 was just unused headroom with no speed benefit —
-      // n_ctx sizes the KV cache, it doesn't change per-token compute.
-      n_ctx: 3072,
+      // tokens) + 3 excerpts (~550 chars/~140 tokens each) + question + up to 2 prior
+      // history turns (each answer now up to MAX_RESPONSE_TOKENS), times up to MAX_SECTIONS
+      // continuation turns (each re-sends the growing conversation) — comfortably tops out
+      // under 4,000 tokens with the fuller answers the system prompt now asks for. 3072
+      // fit the old, terser answer budget but risked context_full mid-answer on a
+      // multi-section, multi-turn conversation now that answers run longer — n_ctx sizes
+      // the KV cache, it doesn't change per-token compute, so this is a memory-sizing
+      // choice, not a speed one.
+      n_ctx: 4096,
       // Prompt prefill (unlike token-by-token decode) is compute-bound and parallelizes
       // well, so more threads meaningfully cuts time-to-first-token on multi-core phones —
       // decode itself is memory-bandwidth-bound and won't scale much past this, but it
@@ -53,22 +56,24 @@ Commentary, followed by a question.
 
 Give a complete, direct answer to the question itself — state the actual answer. Never just point
 toward where it might be found, hint at it, or describe the excerpt instead of answering; the reader
-already can't see the excerpts, only your answer. Use only what the excerpts say: a one-sentence
-summary that directly answers the question, then 1-3 short sentences of supporting detail, all in
-your own words. Stay close to what the excerpts actually say — do not add details, names, or claims
-that aren't in them, even if they sound plausible. If an excerpt is only loosely related to the
-question and doesn't really answer it, say so plainly instead of stretching it into an answer it
-doesn't support. Do not add citations or a sources list yourself; that is handled separately. Keep it
-brief — this is a chat message, not an essay — but it must be a complete answer, not a teaser. If the
+already can't see the excerpts, only your answer. Use only what the excerpts say: open with a
+one-sentence summary that directly answers the question, then explain it properly in your own
+words — walk through the reasoning or detail the excerpts actually give, in a few full sentences,
+the way you'd explain it to someone who wants to actually understand it, not just be pointed at it.
+Long enough to be genuinely useful, short enough to stay a chat message, not an essay: a couple of
+short paragraphs at most. Stay close to what the excerpts actually say — do not add details, names,
+or claims that aren't in them, even if they sound plausible. If an excerpt is only loosely related to
+the question and doesn't really answer it, say so plainly instead of stretching it into an answer it
+doesn't support. Do not add citations or a sources list yourself; that is handled separately. If the
 excerpts don't answer the question, say plainly that the app's content doesn't cover it; never invent
 an answer from outside knowledge.`;
 
 // Caps how long a single section takes to generate — the real lever on response time.
 // A longer answer isn't lost, it just arrives as more sections (see MAX_SECTIONS below)
-// instead of one long wait. Bumped back up from 200 alongside the search-limit increase
-// above — a slightly longer budget gives a genuinely relevant, well-supported answer
-// room to actually finish instead of being cut off right as it gets useful.
-const MAX_RESPONSE_TOKENS = 256;
+// instead of one long wait. Bumped up again (from 256) alongside the fuller-explanation
+// system prompt above — asking for a properly explained answer and then cutting it off
+// at the old, terser budget would just move the truncation earlier instead of fixing it.
+const MAX_RESPONSE_TOKENS = 384;
 
 // If a section gets cut off by MAX_RESPONSE_TOKENS rather than finishing naturally, we
 // ask the model to continue as a fresh turn and deliver the continuation as its own

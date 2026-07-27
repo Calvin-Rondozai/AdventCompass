@@ -20,7 +20,17 @@ export async function loadFullBible(db: SQLiteDatabase): Promise<void> {
   await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM bible');
     for (const [translation, moduleId] of Object.entries(TRANSLATION_MODULES)) {
-      const verses = await loadJsonAsset<VerseTuple[]>(moduleId);
+      let verses: VerseTuple[];
+      try {
+        verses = await loadJsonAsset<VerseTuple[]>(moduleId);
+      } catch {
+        // Same reasoning as egwBooks.ts: skip a translation that genuinely fails to load
+        // rather than throwing and rolling back every other translation's rows along with
+        // it — the outer migrate.ts self-healing check (row count > 0) only retries this
+        // whole migration while the table is completely empty, so a translation that fails
+        // here stays missing until the next full-empty retry rather than blocking the rest.
+        continue;
+      }
       for (let i = 0; i < verses.length; i += INSERT_BATCH_SIZE) {
         const chunk = verses.slice(i, i + INSERT_BATCH_SIZE);
         const placeholders = chunk.map(() => '(?,?,?,?,?)').join(',');

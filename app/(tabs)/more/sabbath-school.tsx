@@ -79,20 +79,22 @@ function CoverThumbFull({ uri }: { uri: string | null }) {
   const theme = useTheme();
   const [failed, setFailed] = useState(false);
 
+  // No maxHeight cap — the cover should fill however much width its column gets (half the
+  // screen, minus padding/gap, in the 2-up grid) and grow tall enough to match that width's
+  // 3:4 aspect ratio, not be capped down to a fixed small thumbnail size.
   if (!uri || failed) {
     return (
       <View
         style={{
           width: '100%',
           aspectRatio: 3 / 4,
-          maxHeight: 160,
           borderRadius: theme.radius.sm,
           backgroundColor: theme.colors.accentSoft,
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <BookOpen size={36} color={theme.colors.accent} strokeWidth={1.75} />
+        <BookOpen size={48} color={theme.colors.accent} strokeWidth={1.75} />
       </View>
     );
   }
@@ -100,7 +102,7 @@ function CoverThumbFull({ uri }: { uri: string | null }) {
     <Image
       source={{ uri }}
       onError={() => setFailed(true)}
-      style={{ width: '100%', aspectRatio: 3 / 4, maxHeight: 160, borderRadius: theme.radius.sm, backgroundColor: theme.colors.surfaceMuted }}
+      style={{ width: '100%', aspectRatio: 3 / 4, borderRadius: theme.radius.sm, backgroundColor: theme.colors.surfaceMuted }}
       resizeMode="cover"
     />
   );

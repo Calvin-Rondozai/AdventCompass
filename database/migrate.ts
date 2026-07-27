@@ -5,9 +5,18 @@ import { loadEgwBooksIfNeeded } from './egwBooks';
 
 export const DATABASE_NAME = 'maranatha_one.db';
 
-async function bibleTableHasTranslationColumn(db: SQLiteDatabase): Promise<boolean> {
+// Schema alone isn't enough to prove the bible table is actually usable: CREATE_TABLES_SQL
+// runs and commits before loadFullBible's own DELETE+INSERT transaction, so a load that gets
+// interrupted partway (a crash, an OOM parsing a translation's JSON, anything) rolls back all
+// the *rows* while leaving the *table + column* already committed from the CREATE step. A
+// later launch would then see "translation column exists" and skip loadFullBible forever,
+// permanently stuck with a schema-correct but empty table. Checking row count too makes this
+// self-healing against exactly that case, not just a missing column.
+async function bibleTableNeedsRebuild(db: SQLiteDatabase): Promise<boolean> {
   const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(bible)');
-  return columns.some((c) => c.name === 'translation');
+  if (!columns.some((c) => c.name === 'translation')) return true;
+  const row = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM bible');
+  return (row?.count ?? 0) === 0;
 }
 
 async function ensureNotesReminderColumns(db: SQLiteDatabase): Promise<void> {
@@ -53,12 +62,32 @@ async function ensureSabbathHighlightsWordColumns(db: SQLiteDatabase): Promise<v
   await db.execAsync('DROP INDEX IF EXISTS idx_sabbath_highlights_block');
 }
 
-export async function migrateDbIfNeeded(db: SQLiteDatabase) {
+// SQLiteProvider's onInit can fire twice concurrently (React Native's dev-mode double
+// effect invocation) for the same underlying db file. Without this guard, both calls
+// race the check-then-act guards below (e.g. loadEgwBooksIfNeeded's "SELECT COUNT then
+// insert") and the second run collides with the first's now-committed rows — a UNIQUE
+// constraint failure on egw_chapters. Module-level, not per-db, since there's only ever
+// one database in this app; a rejected attempt clears the slot so a genuine failure can
+// still be retried on the next onInit call rather than being cached forever.
+let migrationPromise: Promise<void> | null = null;
+
+export function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
+  if (!migrationPromise) {
+    migrationPromise = runMigration(db).catch((err) => {
+      migrationPromise = null;
+      throw err;
+    });
+  }
+  return migrationPromise;
+}
+
+async function runMigration(db: SQLiteDatabase) {
   // Check the actual table shape rather than trusting user_version — during development,
   // hot reloads can re-run this against evolving code and leave user_version stamped ahead
-  // of what the persisted tables actually look like. Checking the real column is self-healing
-  // regardless of how that bookkeeping got out of sync.
-  const needsBibleRebuild = !(await bibleTableHasTranslationColumn(db));
+  // of what the persisted tables actually look like. Checking the real column (and row
+  // count — see bibleTableNeedsRebuild) is self-healing regardless of how that bookkeeping
+  // got out of sync.
+  const needsBibleRebuild = await bibleTableNeedsRebuild(db);
   if (needsBibleRebuild) {
     await db.execAsync('DROP TABLE IF EXISTS bible');
   }

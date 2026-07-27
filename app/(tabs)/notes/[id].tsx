@@ -241,6 +241,14 @@ export default function NoteEditorScreen() {
       title: isNew && !existing ? 'New Note' : 'Note',
       headerRight: () => (
         <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
+          <PressableScale onPress={() => setReminderEnabled((v) => !v)} style={{ padding: theme.spacing.xs }}>
+            <Bell
+              size={22}
+              color={reminderEnabled ? theme.colors.primary : theme.colors.text}
+              fill={reminderEnabled ? theme.colors.primary : 'transparent'}
+              strokeWidth={1.75}
+            />
+          </PressableScale>
           {!!existing && (
             <PressableScale onPress={() => setMenuVisible(true)} style={{ padding: theme.spacing.xs }}>
               <MoreHorizontal size={22} color={theme.colors.text} strokeWidth={1.75} />
@@ -252,7 +260,7 @@ export default function NoteEditorScreen() {
         </View>
       ),
     });
-  }, [navigation, theme, isNew, existing, handleSave]);
+  }, [navigation, theme, isNew, existing, handleSave, reminderEnabled]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={[]}>

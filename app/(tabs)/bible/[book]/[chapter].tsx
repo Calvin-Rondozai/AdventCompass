@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Modal, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, View } from 'react-native';
+import { BackHandler, Modal, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
@@ -68,6 +68,19 @@ export default function ChapterReaderScreen() {
   const nextRef = getAdjacentChapter(book, chapter, 'next');
   const swatchHex = HIGHLIGHT_HEX[theme.scheme];
 
+  const goBack = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/bible');
+  }, []);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      goBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [goBack]);
+
   useLayoutEffect(() => {
     const localizedBook = getLocalizedBookName(translation, book);
     navigation.setOptions({
@@ -75,12 +88,10 @@ export default function ChapterReaderScreen() {
       headerBackTitle: localizedBook,
       // When this screen is reached via a deep link from another tab (Devotions, a
       // reading plan, a note), this stack has no prior entry, so the default back
-      // button is absent — always provide a way back to the book list.
+      // button is absent — always provide a way back to the book list. The hardware
+      // back button above is wired to the exact same goBack() so both always agree.
       headerLeft: () => (
-        <PressableScale
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/bible'))}
-          style={{ padding: theme.spacing.xs }}
-        >
+        <PressableScale onPress={goBack} style={{ padding: theme.spacing.xs }}>
           <ArrowLeft size={22} color={theme.colors.text} strokeWidth={2} />
         </PressableScale>
       ),
@@ -93,7 +104,7 @@ export default function ChapterReaderScreen() {
         </PressableScale>
       ),
     });
-  }, [navigation, book, chapter, translation, theme, compareTranslation]);
+  }, [navigation, book, chapter, translation, theme, compareTranslation, goBack]);
 
   // Restore the tab bar whenever this screen loses focus or unmounts, so it doesn't
   // stay hidden after navigating away mid-scroll.

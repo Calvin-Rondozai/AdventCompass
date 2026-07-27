@@ -1,14 +1,15 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Animated, FlatList, Keyboard, Platform, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { Info, Sparkles, Download, ArrowUp } from '@/components/ui/Icon';
+import { Info, Sparkles, Download, ArrowUp, Link2 } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { downloadModel, hasModel, DownloadProgress } from '@/services/aiModel';
 import { AI_INFERENCE_AVAILABLE, askAssistant, ChatMessage, resetConversation } from '@/services/aiAssistant';
-import { ensureSearchIndexBuilt } from '@/database/searchIndex';
+import { ensureSearchIndexBuilt, resolveSourceLink, SearchChunk } from '@/database/searchIndex';
+import { showAlert } from '@/components/ui/AppAlert';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body, Label } from '@/components/ui/Typography';
 import { newLocalId } from '@/utils/localId';
@@ -131,6 +132,43 @@ function AssistantBubble({ text }: { text: string }) {
   );
 }
 
+// Tapping a source jumps straight to that verse/chapter in its own reader — resolveSourceLink
+// turns the chunk's `ref` (an internal "book|chapter|verse"-shaped string, format owned by
+// database/searchIndex.ts) into an actual route. A chunk whose source type has no reader
+// screen (shouldn't happen for the bible/egw/commentary set the AI Assistant searches, but
+// resolveSourceLink returns null rather than throwing) is skipped rather than shown unpressable.
+function SourceChips({ sources }: { sources: SearchChunk[] }) {
+  const theme = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs, marginTop: theme.spacing.xs, marginLeft: 32 }}>
+      {sources.map((s, i) => {
+        const link = resolveSourceLink(s);
+        if (!link) return null;
+        return (
+          <PressableScale key={i} scaleTo={0.95} onPress={() => router.push(link)}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: theme.colors.accentSoft,
+                borderRadius: theme.radius.pill,
+                paddingHorizontal: theme.spacing.sm,
+                paddingVertical: 4,
+                gap: 4,
+              }}
+            >
+              <Link2 size={10} color={theme.colors.accent} strokeWidth={2} />
+              <Label style={{ color: theme.colors.accent, fontSize: 11 }} numberOfLines={1}>
+                {s.title}
+              </Label>
+            </View>
+          </PressableScale>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function AIAssistantScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
@@ -212,9 +250,14 @@ export default function AIAssistantScreen() {
     try {
       await downloadModel(setProgress);
       setModelReady(true);
-    } catch {
+    } catch (error) {
       // downloadModel already cleans up a partial file — leave modelReady false so the
-      // button reappears for a retry.
+      // button reappears for a retry. This used to fail completely silently (no message
+      // at all), which is indistinguishable from the button just not working — showing
+      // the actual error (network unreachable, host blocked, timeout, etc.) at least
+      // tells the user why, instead of a silent no-op.
+      const message = error instanceof Error ? error.message : String(error);
+      showAlert('Download failed', `Couldn't download the AI model: ${message}\n\nCheck your connection and try again.`);
     } finally {
       setDownloading(false);
     }
@@ -230,10 +273,10 @@ export default function AIAssistantScreen() {
     try {
       await askAssistant(question, db, {
         onToken: setStreamingText,
-        onSection: (sectionText) => {
+        onSection: (sectionText, sources) => {
           // A long answer arrives as more than one section — each finished one becomes
           // its own message immediately, and streaming resets for whatever comes next.
-          setMessages((prev) => [...prev, { id: newLocalId(), role: 'assistant', text: sectionText, at: Date.now() }]);
+          setMessages((prev) => [...prev, { id: newLocalId(), role: 'assistant', text: sectionText, sources, at: Date.now() }]);
           setStreamingText('');
         },
       });
@@ -369,6 +412,9 @@ export default function AIAssistantScreen() {
                   </Body>
                 </View>
               </View>
+              {item.role === 'assistant' && item.sources && item.sources.length > 0 && (
+                <SourceChips sources={item.sources} />
+              )}
               <Label
                 style={{
                   marginTop: 2,

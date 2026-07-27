@@ -7,6 +7,7 @@ import { ChevronRight } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { getQuarterData, SabbathQuarterData } from '@/database/sabbathSchool';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body, Label } from '@/components/ui/Typography';
 
@@ -25,7 +26,7 @@ export default function SabbathQuarterLessonsScreen() {
     navigation.setOptions({ title: quarter?.title ?? 'Sabbath School' });
   }, [navigation, quarter]);
 
-  if (!quarter) return null;
+  if (!quarter) return <PageLoader />;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>

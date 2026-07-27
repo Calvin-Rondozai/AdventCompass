@@ -7,6 +7,42 @@ import { DEVOTIONALS } from './devotionals';
 
 export type SearchChunk = { text: string; source: string; ref: string; title: string };
 
+// A source's `ref` is a pipe-delimited string whose shape depends on which of the three
+// insert sites in buildSearchIndex below produced it (see the Row literals there) — this
+// is the single place that knows how to turn one back into an in-app route, so the AI
+// Assistant's "Sources" chips can be tappable instead of plain text. Returns null for a
+// source type with no reader screen of its own (hymnal/devotional are excluded from
+// AI_SOURCES anyway, so in practice this only ever sees bible/egw/commentary).
+// Literal pathnames (not a generic `string`) so this satisfies expo-router's typed-routes
+// Href type at the call site without a cast.
+export type SourceLink =
+  | { pathname: '/bible/[book]/[chapter]'; params: { book: string; chapter: string; verse: string } }
+  | { pathname: '/more/egw/[code]/[number]'; params: { code: string; number: string } }
+  | { pathname: '/more/commentary/[book]/[chapter]'; params: { book: string; chapter: string } };
+
+export function resolveSourceLink(chunk: Pick<SearchChunk, 'source' | 'ref'>): SourceLink | null {
+  const parts = chunk.ref.split('|');
+  switch (chunk.source) {
+    case 'bible': {
+      const [book, chapter, verse] = parts;
+      if (!book || !chapter || !verse) return null;
+      return { pathname: '/bible/[book]/[chapter]', params: { book, chapter, verse } };
+    }
+    case 'egw': {
+      const [code, number] = parts;
+      if (!code || !number) return null;
+      return { pathname: '/more/egw/[code]/[number]', params: { code, number } };
+    }
+    case 'commentary': {
+      const [book, chapter] = parts;
+      if (!book || !chapter) return null;
+      return { pathname: '/more/commentary/[book]/[chapter]', params: { book, chapter } };
+    }
+    default:
+      return null;
+  }
+}
+
 const INDEX_BUILT_KEY = 'search_index_built_v4';
 const INSERT_BATCH_SIZE = 400;
 const MIN_PARAGRAPH_LENGTH = 40;
