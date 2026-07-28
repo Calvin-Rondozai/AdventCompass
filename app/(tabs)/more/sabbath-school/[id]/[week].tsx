@@ -52,9 +52,13 @@ function tokenizeWords(text: string): { word: string; start: number; end: number
   return tokens;
 }
 
-// Renders one block word-by-word so a highlight can cover just the words the user picked
-// instead of the whole paragraph, while scripture references stay tappable as a unit —
-// a word inside a reference always opens the verse popup rather than joining a selection.
+// Renders one block by character range (not just word-by-word) so a highlight covers the
+// WHOLE selected range as one continuous colored block — including the spaces and
+// punctuation between words — the way a native text selection looks, instead of color only
+// appearing under each individual word glyph with visible gaps between them. Word
+// boundaries are still tracked, since taps (to anchor/extend a selection) and long-presses
+// (to remove a highlight) are word-granularity actions; scripture references stay tappable
+// as a unit, and a word inside a reference never joins a highlight selection.
 function renderHighlightableBlock(
   text: string,
   blockIndex: number,
@@ -73,40 +77,85 @@ function renderHighlightableBlock(
   const { linkColor, pendingColor, blockHighlights, swatchHex, anchorWord, pendingRange, onPressRef, onWordPress, onWordLongPress } = opts;
   const refs = findScriptureRefs(text);
   const words = tokenizeWords(text);
+  if (words.length === 0) return text;
 
-  const highlightColorFor = (wordIndex: number): string | undefined => {
-    // Ranges can overlap (see the ponytail note on applyHighlight) — last match wins.
+  const charRangeForWords = (startWord: number, endWord: number): [number, number] => [
+    words[startWord]?.start ?? 0,
+    words[endWord]?.end ?? text.length,
+  ];
+
+  // Ranges can overlap (see the ponytail note on applyHighlight) — last match wins.
+  const colorAt = (charIndex: number): string | undefined => {
     let color: HighlightColor | undefined;
     for (const h of blockHighlights) {
-      const covered = h.startWord === -1 || (wordIndex >= h.startWord && wordIndex <= h.endWord);
-      if (covered) color = h.color;
+      if (h.startWord === -1) {
+        color = h.color;
+        continue;
+      }
+      const [start, end] = charRangeForWords(h.startWord, h.endWord);
+      if (charIndex >= start && charIndex < end) color = h.color;
     }
     return color ? swatchHex[color] : undefined;
   };
 
+  const pendingCharRange: [number, number] | null = pendingRange
+    ? charRangeForWords(pendingRange.start, pendingRange.end)
+    : anchorWord != null
+      ? charRangeForWords(anchorWord, anchorWord)
+      : null;
+
+  // Every word boundary, ref boundary, and highlight/pending boundary becomes its own cut
+  // point, so each stretch of text between two adjacent cuts gets one consistent style —
+  // that's what makes a whole highlighted range (or a whole reference) render as a single
+  // unbroken colored/underlined span instead of one per word.
+  const cuts = new Set<number>([0, text.length]);
+  words.forEach((t) => {
+    cuts.add(t.start);
+    cuts.add(t.end);
+  });
+  refs.forEach((r) => {
+    cuts.add(r.start);
+    cuts.add(r.end);
+  });
+  blockHighlights.forEach((h) => {
+    if (h.startWord === -1) return;
+    const [start, end] = charRangeForWords(h.startWord, h.endWord);
+    cuts.add(start);
+    cuts.add(end);
+  });
+  if (pendingCharRange) {
+    cuts.add(pendingCharRange[0]);
+    cuts.add(pendingCharRange[1]);
+  }
+  const sortedCuts = [...cuts].sort((a, b) => a - b);
+
   const nodes: React.ReactNode[] = [];
-  let cursor = 0;
-  words.forEach((tok, wordIndex) => {
-    if (tok.start > cursor) nodes.push(text.slice(cursor, tok.start));
-    const ref = refs.find((r) => tok.start < r.end && tok.end > r.start);
-    const isPending = pendingRange ? wordIndex >= pendingRange.start && wordIndex <= pendingRange.end : wordIndex === anchorWord;
+  for (let i = 0; i < sortedCuts.length - 1; i++) {
+    const start = sortedCuts[i];
+    const end = sortedCuts[i + 1];
+    if (start >= end) continue;
+    const wordIndex = words.findIndex((t) => start >= t.start && end <= t.end);
+    const ref = refs.find((r) => start < r.end && end > r.start);
+    const isPending = !!pendingCharRange && start >= pendingCharRange[0] && end <= pendingCharRange[1];
     nodes.push(
       <Body
-        key={wordIndex}
-        onPress={() => (ref ? onPressRef({ book: ref.book, chapter: ref.chapter, verse: ref.verse, verseEnd: ref.verseEnd }) : onWordPress(blockIndex, wordIndex))}
-        onLongPress={() => !ref && onWordLongPress(blockIndex, wordIndex)}
+        key={i}
+        onPress={
+          wordIndex >= 0
+            ? () => (ref ? onPressRef({ book: ref.book, chapter: ref.chapter, verse: ref.verse, verseEnd: ref.verseEnd }) : onWordPress(blockIndex, wordIndex))
+            : undefined
+        }
+        onLongPress={wordIndex >= 0 && !ref ? () => onWordLongPress(blockIndex, wordIndex) : undefined}
         style={{
           color: ref ? linkColor : undefined,
           textDecorationLine: ref ? 'underline' : 'none',
-          backgroundColor: isPending ? pendingColor : highlightColorFor(wordIndex),
+          backgroundColor: isPending ? pendingColor : colorAt(start),
         }}
       >
-        {tok.word}
+        {text.slice(start, end)}
       </Body>
     );
-    cursor = tok.end;
-  });
-  if (cursor < text.length) nodes.push(text.slice(cursor));
+  }
   return nodes;
 }
 
@@ -300,7 +349,6 @@ export default function SabbathLessonReaderScreen() {
             </Body>
           )}
           <Body
-            selectable
             style={{
               fontFamily: theme.fontFamily.serifItalic,
               fontSize: theme.fontSize.base,
@@ -317,7 +365,6 @@ export default function SabbathLessonReaderScreen() {
     return (
       <Body
         key={index}
-        selectable
         style={{
           fontFamily: theme.fontFamily.serifRegular,
           fontSize: theme.fontSize.md,

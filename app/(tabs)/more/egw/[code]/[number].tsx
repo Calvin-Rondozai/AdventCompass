@@ -210,7 +210,6 @@ export default function EgwChapterReaderScreen() {
                 }}
               >
                 <Body
-                  selectable
                   style={{
                     fontFamily: theme.fontFamily.serifRegular,
                     fontSize: theme.fontSize.md,

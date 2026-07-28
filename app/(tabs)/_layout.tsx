@@ -98,20 +98,20 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="notes"
-        options={{
-          title: 'Notes',
-          tabBarIcon: ({ focused, color }) => (
-            <AnimatedTabIcon Icon={NotebookPen} focused={focused} color={color as string} dotColor={theme.colors.primary} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="hymnal"
         options={{
           title: 'Hymnal',
           tabBarIcon: ({ focused, color }) => (
             <AnimatedTabIcon Icon={Music} focused={focused} color={color as string} dotColor={theme.colors.primary} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="notes"
+        options={{
+          title: 'Notes',
+          tabBarIcon: ({ focused, color }) => (
+            <AnimatedTabIcon Icon={NotebookPen} focused={focused} color={color as string} dotColor={theme.colors.primary} />
           ),
         }}
       />
