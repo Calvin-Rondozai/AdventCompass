@@ -208,9 +208,18 @@ export default function AIAssistantScreen() {
     let cancelled = false;
     ensureSearchIndexBuilt(db, (label) => {
       if (!cancelled) setIndexingLabel(label);
-    }).finally(() => {
-      if (!cancelled) setIndexingLabel(null);
-    });
+    })
+      .catch((error) => {
+        // This is a proactive background warm-up, not a user-initiated action — if it
+        // fails (e.g. the db connection was torn down mid-build by a dev reload), there's
+        // no UI to show an error in. askAssistant() calls ensureSearchIndexBuilt again on
+        // the next real question and retries cleanly, so just log it instead of leaving
+        // it an unhandled rejection (which otherwise surfaces as a scary uncaught error).
+        if (!cancelled) console.error('Background search-index build failed', error);
+      })
+      .finally(() => {
+        if (!cancelled) setIndexingLabel(null);
+      });
     return () => {
       cancelled = true;
     };

@@ -3,7 +3,7 @@ import { FlatList, ScrollView, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { Palette, X } from '@/components/ui/Icon';
+import { X } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { getQuarterData, SabbathDay, SabbathQuarterData } from '@/database/sabbathSchool';
@@ -177,7 +177,6 @@ export default function SabbathLessonReaderScreen() {
   const [highlights, setHighlights] = useState<Map<number, SabbathHighlight[]>>(new Map());
   const [anchor, setAnchor] = useState<{ block: number; word: number } | null>(null);
   const [pending, setPending] = useState<{ block: number; start: number; end: number } | null>(null);
-  const [showColorRow, setShowColorRow] = useState(false);
   const listRef = useRef<FlatList<SabbathDay>>(null);
   const answerTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const swatchHex = HIGHLIGHT_HEX[theme.scheme];
@@ -214,7 +213,6 @@ export default function SabbathLessonReaderScreen() {
     if (day == null) return;
     setAnchor(null);
     setPending(null);
-    setShowColorRow(false);
     getSabbathAnswers(db, quarter.id, weekNumber, day).then(setAnswers);
     getSabbathHighlights(db, quarter.id, weekNumber, day).then(setHighlights);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -233,31 +231,39 @@ export default function SabbathLessonReaderScreen() {
   const clearSelection = useCallback(() => {
     setAnchor(null);
     setPending(null);
-    setShowColorRow(false);
   }, []);
 
-  // First tap on a word anchors the selection; a second tap in the same block confirms
-  // the range and opens the color row. Tapping while a range is already pending is a
-  // no-op — clear it with the X button first, rather than silently restarting it.
+  // First tap on a word anchors the selection; a second tap in the same block confirms the
+  // range and shows the color swatches immediately (no separate step to reveal them). A tap
+  // anywhere else — a different block, or again after a range is already pending — restarts
+  // the selection at that word instead of silently doing nothing, so a mis-tap never needs
+  // the X button just to recover.
   const handleWordPress = useCallback(
     (blockIndex: number, wordIndex: number) => {
-      if (pending) return;
       if (!anchor || anchor.block !== blockIndex) {
+        setPending(null);
         setAnchor({ block: blockIndex, word: wordIndex });
         return;
       }
       setPending({ block: blockIndex, start: Math.min(anchor.word, wordIndex), end: Math.max(anchor.word, wordIndex) });
       setAnchor(null);
     },
-    [anchor, pending]
+    [anchor]
   );
 
   // Long-pressing a word that's part of an existing highlight removes just that range.
+  // Long-pressing a plain word starts a new selection there, same as a first tap — people
+  // instinctively try long-press first (that's how selecting text works everywhere else),
+  // and it used to do nothing at all here, which read as the screen being frozen.
   const handleWordLongPress = useCallback(
     async (blockIndex: number, wordIndex: number) => {
       const blockHighlights = highlights.get(blockIndex) ?? [];
       const hit = blockHighlights.find((h) => h.startWord === -1 || (wordIndex >= h.startWord && wordIndex <= h.endWord));
-      if (!hit) return;
+      if (!hit) {
+        setPending(null);
+        setAnchor({ block: blockIndex, word: wordIndex });
+        return;
+      }
       await removeSabbathHighlight(db, hit.id);
       setHighlights((prev) => {
         const next = new Map(prev);
@@ -495,7 +501,7 @@ export default function SabbathLessonReaderScreen() {
             padding: theme.spacing.md,
           }}
         >
-          {showColorRow && pending && (
+          {pending && (
             <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginBottom: theme.spacing.sm }}>
               {HIGHLIGHT_COLORS.map((c) => (
                 <PressableScale key={c} onPress={() => applyHighlight(c)} scaleTo={0.85}>
@@ -507,14 +513,9 @@ export default function SabbathLessonReaderScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Body style={{ flex: 1, color: theme.colors.textMuted, fontSize: theme.fontSize.sm }}>
               {pending
-                ? `${pending.end - pending.start + 1} word${pending.end > pending.start ? 's' : ''} selected`
+                ? `${pending.end - pending.start + 1} word${pending.end > pending.start ? 's' : ''} selected — pick a color`
                 : 'Tap the last word to finish selecting'}
             </Body>
-            {pending && (
-              <PressableScale onPress={() => setShowColorRow((v) => !v)} style={{ padding: theme.spacing.xs }}>
-                <Palette size={20} color={theme.colors.primary} strokeWidth={1.75} />
-              </PressableScale>
-            )}
             <PressableScale onPress={clearSelection} style={{ padding: theme.spacing.xs }}>
               <X size={20} color={theme.colors.textMuted} strokeWidth={1.75} />
             </PressableScale>

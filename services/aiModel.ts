@@ -7,6 +7,12 @@ import { File, Paths } from 'expo-file-system';
 // ("/blob/" is the HTML viewer page — "/resolve/" is the actual file download.)
 const MODEL_URL = 'https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf';
 const MODEL_FILENAME = 'gemma-3-1b-it-Q4_K_M.gguf';
+// HF's Content-Length for this exact file, confirmed directly against the URL above. Used
+// only to catch a truncated download left on disk (e.g. the app got killed, or the network
+// dropped, mid-download, before our own cleanup in downloadModel's catch could run) — a file
+// that exists but is smaller than this was never actually a complete model, just one that
+// `exists` alone can't tell apart from a real one.
+const EXPECTED_MODEL_BYTES = 806058240;
 
 function modelFile(): File {
   return new File(Paths.document, MODEL_FILENAME);
@@ -16,8 +22,20 @@ export function getModelPath(): string {
   return modelFile().uri;
 }
 
+// Self-heals a truncated leftover (the app got killed, or the network dropped, mid-download,
+// before our own cleanup in downloadModel's catch could run) rather than let it sit there
+// looking "downloaded" and fail later with an opaque "Failed to load model" from llama.rn.
+function isCompleteModelFile(file: File): boolean {
+  if (!file.exists) return false;
+  if (file.size < EXPECTED_MODEL_BYTES) {
+    file.delete();
+    return false;
+  }
+  return true;
+}
+
 export function hasModel(): boolean {
-  return modelFile().exists;
+  return isCompleteModelFile(modelFile());
 }
 
 export type DownloadProgress = { bytesWritten: number; totalBytes: number };
@@ -44,7 +62,7 @@ export function getLastDownloadProgress(): DownloadProgress | null {
 // retry starts clean rather than resuming into a truncated, unusable .gguf.
 export function downloadModel(onProgress?: (p: DownloadProgress) => void): Promise<string> {
   const destination = modelFile();
-  if (destination.exists) return Promise.resolve(destination.uri);
+  if (isCompleteModelFile(destination)) return Promise.resolve(destination.uri);
 
   if (onProgress) progressListeners.add(onProgress);
   if (downloadPromise) return downloadPromise;

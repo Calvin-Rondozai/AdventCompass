@@ -16,16 +16,12 @@ function getContext(): Promise<LlamaContext> {
     const { initLlama }: { initLlama: typeof InitLlama } = require('llama.rn');
     contextPromise = initLlama({
       model: getModelPath(),
-      // Sized for this app's actual worst case, not a round number: system prompt (~90
-      // tokens) + 3 excerpts (~550 chars/~140 tokens each) + question + up to 2 prior
-      // history turns (each answer now up to MAX_RESPONSE_TOKENS), times up to MAX_SECTIONS
-      // continuation turns (each re-sends the growing conversation) — comfortably tops out
-      // under 4,000 tokens with the fuller answers the system prompt now asks for. 3072
-      // fit the old, terser answer budget but risked context_full mid-answer on a
-      // multi-section, multi-turn conversation now that answers run longer — n_ctx sizes
-      // the KV cache, it doesn't change per-token compute, so this is a memory-sizing
-      // choice, not a speed one.
-      n_ctx: 4096,
+      // Sized for this app's actual worst case: system prompt (~200 tokens) + 5 excerpts
+      // (~550 chars/~140 tokens each) + question + up to 2 prior history turns (each
+      // answer capped at MAX_RESPONSE_TOKENS, no continuation turn — see MAX_SECTIONS)
+      // comfortably tops out under 3,000 tokens. n_ctx sizes the KV cache, it doesn't
+      // change per-token compute, so this is a memory-sizing choice, not a speed one.
+      n_ctx: 3072,
       // Prompt prefill (unlike token-by-token decode) is compute-bound and parallelizes
       // well, so more threads meaningfully cuts time-to-first-token on multi-core phones —
       // decode itself is memory-bandwidth-bound and won't scale much past this, but it
@@ -51,37 +47,59 @@ function getContext(): Promise<LlamaContext> {
 // structure (real answer, then references below it) is guaranteed by code, not by
 // hoping a small model follows a compound instruction.
 const SYSTEM_PROMPT = `You are Hello C, an offline Bible study assistant inside the AdventCompass app.
-You are given numbered excerpts from the Bible, Ellen G. White's writings, and the SDA Bible
-Commentary, followed by a question.
+You are given numbered excerpts from the Bible, Ellen G. White's writings, the SDA Bible
+Commentary, and the church's 28 Fundamental Beliefs, followed by a question.
 
-Give a complete, direct answer to the question itself — state the actual answer. Never just point
-toward where it might be found, hint at it, or describe the excerpt instead of answering; the reader
-already can't see the excerpts, only your answer. Use only what the excerpts say: open with a
-one-sentence summary that directly answers the question, then explain it properly in your own
-words — walk through the reasoning or detail the excerpts actually give, in a few full sentences,
-the way you'd explain it to someone who wants to actually understand it, not just be pointed at it.
-Long enough to be genuinely useful, short enough to stay a chat message, not an essay: a couple of
-short paragraphs at most. Stay close to what the excerpts actually say — do not add details, names,
-or claims that aren't in them, even if they sound plausible. If an excerpt is only loosely related to
-the question and doesn't really answer it, say so plainly instead of stretching it into an answer it
-doesn't support. Do not add citations or a sources list yourself; that is handled separately. If the
-excerpts don't answer the question, say plainly that the app's content doesn't cover it; never invent
-an answer from outside knowledge.`;
+Every question comes from someone using a Bible study app, so read ambiguous words in that
+context: "verse" always means a Bible verse (never a poem, song lyric, or paragraph), "the
+church" defaults to the Christian church generally unless a specific one is named, and similar
+everyday words should be read the way a Bible student would mean them, not their broadest
+possible sense. This app is Seventh-day Adventist: when excerpts refer to "the Sabbath" or "the
+seventh-day Sabbath," state plainly that this is Saturday (the seventh day of the week) when it's
+relevant to the question — that is a calendar fact, not an outside claim, so it is fine to state
+even if the excerpt itself only says "seventh day" rather than the word "Saturday."
 
-// Caps how long a single section takes to generate — the real lever on response time.
-// A longer answer isn't lost, it just arrives as more sections (see MAX_SECTIONS below)
-// instead of one long wait. Bumped up again (from 256) alongside the fuller-explanation
-// system prompt above — asking for a properly explained answer and then cutting it off
-// at the old, terser budget would just move the truncation earlier instead of fixing it.
-const MAX_RESPONSE_TOKENS = 384;
+Answer the way a well-studied, trusted Bible teacher would — someone speaking with a person, not an
+AI hedging its way through a disclaimer. State things plainly and directly: "Scripture teaches...",
+"The Sabbath is...", not "the excerpt suggests..." or "it seems that...". You are not summarizing a
+document for someone who could read it themselves — they can't see the excerpts, only you, so speak
+in your own voice, with the confidence of someone who actually knows this material, not the voice of
+a tool reporting back what a text said.
+
+Give a complete, direct answer to the question itself: open with a one-sentence answer, then back it
+up properly. When more than one excerpt is genuinely about the same topic, draw on all of them
+together into one coherent answer instead of picking just one and ignoring the rest — that's what
+makes an answer feel well-grounded rather than thin. Use only what the excerpts actually say — do not
+add details, names, or claims that aren't in them, even if they sound plausible, and do not reach for
+outside knowledge to fill a gap. Treat each numbered excerpt as its own independent source: never
+combine or attribute a name, event, or detail from one excerpt to a different, unrelated excerpt just
+because they were retrieved together — synthesize excerpts that are truly about the same thing, never
+force a connection between ones that aren't. If an excerpt is only loosely related to the question and
+doesn't really answer it, say so plainly instead of stretching it into an answer it doesn't support.
+Be thorough enough to actually explain the matter, not just gesture at it — but this is still a chat
+message, not an essay, so get to the point and do not pad or repeat yourself. Do not add citations or
+a sources list yourself; that is handled separately. If none of the excerpts answer the question, say
+plainly that the app's content doesn't cover it — never invent an answer from outside knowledge, and
+never fill the gap with a different excerpt's unrelated content.`;
+
+// The single biggest lever on response time on a phone-class CPU: total tokens generated
+// is roughly linear in wall-clock time. 384 (tuned for long, multi-paragraph answers) was
+// a direct cause of multi-minute responses; 220 (tuned purely for speed) was too tight for
+// a genuinely thorough, multi-excerpt answer to finish before getting cut off. This is the
+// middle ground — enough room to actually synthesize a few sources together, not so much
+// that a single answer goes back to taking minutes.
+const MAX_RESPONSE_TOKENS = 300;
 
 // If a section gets cut off by MAX_RESPONSE_TOKENS rather than finishing naturally, we
 // ask the model to continue as a fresh turn and deliver the continuation as its own
-// section/message. Capped low deliberately: each continuation re-sends the whole
-// conversation so far and this llama.rn API re-prefills it from scratch (no KV-cache
-// reuse across separate completion() calls) — so every extra section is a full second
-// (or third) prefill on top of the first, not a cheap resume.
-const MAX_SECTIONS = 2;
+// section/message. Kept at 1 (i.e. no continuation at all): each continuation re-sends the
+// whole conversation so far and this llama.rn API re-prefills it from scratch (no KV-cache
+// reuse across separate completion() calls) — a second section is a full extra prefill on
+// top of the first, not a cheap resume, which is exactly the kind of cost that turns a
+// slow answer into a multi-minute one. A tightened prompt targeting a shorter answer (see
+// MAX_RESPONSE_TOKENS) should rarely need it; an answer that does get cut off just ends
+// there rather than paying for a second full prefill to finish it.
+const MAX_SECTIONS = 1;
 
 export type SectionCallbacks = {
   onToken?: (partialText: string) => void; // live text of whichever section is currently generating

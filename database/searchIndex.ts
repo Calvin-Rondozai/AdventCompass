@@ -4,21 +4,23 @@ import { EGW_BOOK_LIST, getEgwBook } from './egwBooks';
 import { COMMENTARY_VOLUMES, getCommentaryVolume, clearCommentaryCache } from './sdaCommentary';
 import { HYMNALS, getHymns, clearHymnCache } from './hymnal';
 import { DEVOTIONALS } from './devotionals';
+import { getFundamentalBeliefs } from './fundamentalBeliefs';
 
 export type SearchChunk = { text: string; source: string; ref: string; title: string };
 
-// A source's `ref` is a pipe-delimited string whose shape depends on which of the three
+// A source's `ref` is a pipe-delimited string whose shape depends on which of the four
 // insert sites in buildSearchIndex below produced it (see the Row literals there) — this
 // is the single place that knows how to turn one back into an in-app route, so the AI
 // Assistant's "Sources" chips can be tappable instead of plain text. Returns null for a
 // source type with no reader screen of its own (hymnal/devotional are excluded from
-// AI_SOURCES anyway, so in practice this only ever sees bible/egw/commentary).
+// AI_SOURCES anyway, so in practice this only ever sees bible/egw/commentary/belief).
 // Literal pathnames (not a generic `string`) so this satisfies expo-router's typed-routes
 // Href type at the call site without a cast.
 export type SourceLink =
   | { pathname: '/bible/[book]/[chapter]'; params: { book: string; chapter: string; verse: string } }
   | { pathname: '/more/egw/[code]/[number]'; params: { code: string; number: string } }
-  | { pathname: '/more/commentary/[book]/[chapter]'; params: { book: string; chapter: string } };
+  | { pathname: '/more/commentary/[book]/[chapter]'; params: { book: string; chapter: string } }
+  | { pathname: '/more/beliefs/[number]'; params: { number: string } };
 
 export function resolveSourceLink(chunk: Pick<SearchChunk, 'source' | 'ref'>): SourceLink | null {
   const parts = chunk.ref.split('|');
@@ -38,12 +40,23 @@ export function resolveSourceLink(chunk: Pick<SearchChunk, 'source' | 'ref'>): S
       if (!book || !chapter) return null;
       return { pathname: '/more/commentary/[book]/[chapter]', params: { book, chapter } };
     }
+    case 'belief': {
+      const [number] = parts;
+      if (!number) return null;
+      return { pathname: '/more/beliefs/[number]', params: { number } };
+    }
     default:
       return null;
   }
 }
 
-const INDEX_BUILT_KEY = 'search_index_built_v4';
+// Bumped to v5: adds the 28 Fundamental Beliefs (see buildSearchIndex) to the index — each
+// one is the official, proof-texted SDA doctrinal statement on its topic (e.g. Belief #20,
+// "The Sabbath", cites Gen. 2:1-3, Exod. 20:8-11 etc.), exactly the kind of authoritative,
+// already-in-the-app content that answers "what does this app teach about X" questions
+// better than a paraphrase assembled from scattered verse/commentary excerpts. An install
+// that already built a v4 index needs this rebuild to pick the new rows up at all.
+const INDEX_BUILT_KEY = 'search_index_built_v5';
 const INSERT_BATCH_SIZE = 400;
 const MIN_PARAGRAPH_LENGTH = 40;
 // Kept short — these get concatenated into the LLM prompt at answer time, and a
@@ -175,6 +188,13 @@ async function buildSearchIndex(db: SQLiteDatabase, onProgress?: (label: string)
       buffer
     );
 
+    onProgress?.('Fundamental Beliefs');
+    await insertBatched(
+      db,
+      getFundamentalBeliefs().map((b): Row => [b.content, 'belief', String(b.number), `Fundamental Belief #${b.number}: ${b.title}`]),
+      buffer
+    );
+
     await flush(db, buffer);
   });
 
@@ -188,6 +208,14 @@ async function buildSearchIndex(db: SQLiteDatabase, onProgress?: (label: string)
 const STOPWORDS = new Set([
   'the', 'a', 'an', 'is', 'are', 'was', 'were', 'what', 'does', 'do', 'did', 'to', 'of', 'in', 'on',
   'and', 'or', 'for', 'about', 'that', 'this', 'it', 'how', 'why', 'who', 'i', 'me', 'my', 'can', 'you',
+  // Request-framing words ("GIVE me a BIBLE VERSE that TALKS about health") — every row in
+  // this index already IS Bible/EGW/commentary content, so "bible" and "verse" carry no
+  // topical signal at all here and only dilute the match; "give"/"talk(s)"/"tell"/"show"
+  // are so common across scripture that they were winning bm25 ranking over the one word
+  // that actually named the topic, surfacing something that shared "give" or "talking"
+  // (e.g. Ephesians 5:4's "foolish talking... giving of thanks") instead of the real subject.
+  'give', 'gives', 'giving', 'bible', 'verse', 'verses', 'talk', 'talks', 'talking', 'tell',
+  'tells', 'show', 'shows', 'find', 'please', 'want', 'need', 'know', 'some', 'any',
 ]);
 
 // Porter stemming (in the FTS5 tokenizer) already collapses word *forms* — "believe" /
@@ -214,7 +242,7 @@ const SYNONYM_GROUPS: string[][] = [
   ['sad', 'sadness', 'sorrow', 'sorrowful', 'grief', 'grieving', 'mourning'],
   ['angry', 'anger', 'wrath', 'rage', 'furious'],
   ['death', 'dying', 'die', 'mortality', 'dead'],
-  ['sick', 'sickness', 'illness', 'ill', 'disease', 'healing', 'heal'],
+  ['sick', 'sickness', 'illness', 'ill', 'disease', 'healing', 'heal', 'health', 'healthy'],
   ['poor', 'poverty', 'needy'],
   ['rich', 'wealth', 'wealthy', 'riches'],
   ['forgive', 'forgiveness', 'forgiving', 'mercy', 'pardon'],
@@ -225,7 +253,7 @@ const SYNONYM_GROUPS: string[][] = [
   ['marriage', 'married', 'spouse', 'husband', 'wife'],
   ['children', 'child', 'kids', 'parenting', 'parent'],
   ['work', 'working', 'labor', 'job'],
-  ['rest', 'resting', 'sabbath'],
+  ['rest', 'resting', 'sabbath', 'saturday'],
   ['prayer', 'praying', 'pray'],
   ['faith', 'believe', 'belief', 'trust', 'trusting'],
   ['doubt', 'doubting', 'unbelief'],
@@ -247,12 +275,23 @@ for (const group of SYNONYM_GROUPS) {
   for (const word of group) SYNONYM_LOOKUP.set(word, group);
 }
 
+function questionTerms(question: string): string[] {
+  return (
+    question
+      .toLowerCase()
+      .match(/[a-z0-9]+/g)
+      ?.filter((w) => w.length > 2 && !STOPWORDS.has(w)) ?? []
+  );
+}
+
+// Every original term OR'd together with all its synonyms — a wide net that guarantees
+// *something* usually comes back, but a chunk only needs to share ONE of these (often after
+// synonym expansion loosens it further) to qualify as a candidate. That looseness is exactly
+// what let a barely-related excerpt outrank something genuinely on-topic often enough to make
+// answers feel off-target — this is now only the fallback; see toStrictMatchQuery below.
 function toMatchQuery(question: string): string | null {
-  const terms = question
-    .toLowerCase()
-    .match(/[a-z0-9]+/g)
-    ?.filter((w) => w.length > 2 && !STOPWORDS.has(w));
-  if (!terms || !terms.length) return null;
+  const terms = questionTerms(question);
+  if (!terms.length) return null;
 
   const expanded = new Set<string>();
   for (const term of terms) {
@@ -260,6 +299,17 @@ function toMatchQuery(question: string): string | null {
     for (const synonym of SYNONYM_LOOKUP.get(term) ?? []) expanded.add(synonym);
   }
   return [...expanded].map((t) => `"${t}"`).join(' OR ');
+}
+
+// FTS5 space-separates terms as implicit AND — every one of the question's own words (no
+// synonym expansion) must appear in a row for it to match at all. Much tighter than the OR
+// query above, so when the question has enough specific words to narrow things down, this
+// surfaces excerpts that are actually about all of what was asked, not just one word of it.
+// Tried first; searchContent only falls back to the loose OR query if this finds nothing.
+function toStrictMatchQuery(question: string): string | null {
+  const terms = [...new Set(questionTerms(question))];
+  if (!terms.length) return null;
+  return terms.map((t) => `"${t}"`).join(' ');
 }
 
 // When a question names which kind of source it wants — "which BIBLE VERSE talks about
@@ -270,18 +320,24 @@ function toMatchQuery(question: string): string | null {
 function detectSourceIntent(question: string): string | null {
   const q = question.toLowerCase();
   if (/\bbible verses?\b|\bverses? in the bible\b|\bscriptures?\b|\bwhat verse\b|\bwhich verse\b|\bthe bible\b|\bin the bible\b/.test(q)) return 'bible';
-  if (/\begw\b|ellen (g\.? ?)?white|spirit of prophecy/.test(q)) return 'egw';
+  // "White" alone is deliberately included — this app's whole context is Bible study, and
+  // that's how people actually refer to her ("what does White say", "Mrs White wrote...").
+  // The rare false-positive (a genuine Bible question that happens to mention "white", e.g.
+  // Revelation's white robes) still self-corrects: searchContent only trusts this filter if
+  // it actually finds something, otherwise it falls through to the unfiltered search.
+  if (/\begw\b|ellen (g\.? ?)?white|mrs\.? white|\bwhite\b|spirit of prophecy/.test(q)) return 'egw';
   if (/\bcommentary\b/.test(q)) return 'commentary';
+  if (/fundamental belief|\bdoctrine\b|\bofficially believe\b|does (the church|adventists?) (teach|believe)/.test(q)) return 'belief';
   return null;
 }
 
-// The AI Assistant answers only from Bible, EGW, and commentary — hymnal and devotional
-// content is excluded outright (not just penalized) rather than reindexed away, since
-// hymns/devotionals repeatedly produced shallow or off-topic answers (a hymn mentioning
-// "Jesus" in a lyric line is not an explanation of anything). They stay in the index —
-// removing them would mean another full reindex for no real benefit — this clause just
-// makes sure the AI assistant never sees them, ever.
-const AI_SOURCES = `('bible', 'egw', 'commentary')`;
+// The AI Assistant answers only from Bible, EGW, commentary, and the 28 Fundamental
+// Beliefs — hymnal and devotional content is excluded outright (not just penalized) rather
+// than reindexed away, since hymns/devotionals repeatedly produced shallow or off-topic
+// answers (a hymn mentioning "Jesus" in a lyric line is not an explanation of anything).
+// They stay in the index — removing them would mean another full reindex for no real
+// benefit — this clause just makes sure the AI assistant never sees them, ever.
+const AI_SOURCES = `('bible', 'egw', 'commentary', 'belief')`;
 
 // bm25() in SQLite FTS5 is negative, more-negative = better match, and it length-
 // normalizes — so a short document where the query term appears prominently can outrank
@@ -296,27 +352,18 @@ const AI_SOURCES = `('bible', 'egw', 'commentary')`;
 // schema.ts) is a much stronger relevance signal than the same word appearing once in a
 // few hundred characters of body text, which is exactly the gap that let a Bible verse
 // mentioning "Jesus" in passing outrank content actually about him.
-export async function searchContent(db: SQLiteDatabase, question: string, limit = 6): Promise<SearchChunk[]> {
-  const match = toMatchQuery(question);
-  if (!match) return [];
-
-  const sourceIntent = detectSourceIntent(question);
-  if (sourceIntent) {
-    const filtered = await db.getAllAsync<SearchChunk>(
+async function runSearch(db: SQLiteDatabase, match: string, limit: number, source?: string): Promise<SearchChunk[]> {
+  if (source) {
+    return db.getAllAsync<SearchChunk>(
       `SELECT text, source, ref, title FROM content_search
        WHERE content_search MATCH ? AND source = ?
        ORDER BY bm25(content_search, 1.0, 0.0, 0.0, 3.0)
        LIMIT ?`,
       match,
-      sourceIntent,
+      source,
       limit
     );
-    // Only trust the filter if it actually found something — if the requested source has
-    // no match at all, falling through to the normal search beats telling the user "not
-    // covered" when a good answer exists in another source.
-    if (filtered.length) return filtered;
   }
-
   return db.getAllAsync<SearchChunk>(
     `SELECT text, source, ref, title FROM content_search
      WHERE content_search MATCH ? AND source IN ${AI_SOURCES}
@@ -325,4 +372,32 @@ export async function searchContent(db: SQLiteDatabase, question: string, limit 
     match,
     limit
   );
+}
+
+export async function searchContent(db: SQLiteDatabase, question: string, limit = 6): Promise<SearchChunk[]> {
+  const looseMatch = toMatchQuery(question);
+  if (!looseMatch) return [];
+  const strictMatch = toStrictMatchQuery(question);
+
+  const sourceIntent = detectSourceIntent(question);
+  if (sourceIntent) {
+    // Strict (every original word required) first — only fall back to the synonym-expanded
+    // OR query, then to no source filter at all, if a stricter attempt found nothing. Each
+    // fallback trades precision for recall, tried in that order.
+    if (strictMatch) {
+      const strict = await runSearch(db, strictMatch, limit, sourceIntent);
+      if (strict.length) return strict;
+    }
+    const filtered = await runSearch(db, looseMatch, limit, sourceIntent);
+    // Only trust the filter if it actually found something — if the requested source has
+    // no match at all, falling through to the normal search beats telling the user "not
+    // covered" when a good answer exists in another source.
+    if (filtered.length) return filtered;
+  }
+
+  if (strictMatch) {
+    const strict = await runSearch(db, strictMatch, limit);
+    if (strict.length) return strict;
+  }
+  return runSearch(db, looseMatch, limit);
 }
