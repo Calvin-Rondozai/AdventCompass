@@ -10,6 +10,7 @@ import { EgwBook, getEgwBook } from '@/database/egwBooks';
 import { getEgwHighlightsForChapter, toggleEgwHighlightColor } from '@/database/egwHighlights';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_HEX, HighlightColor } from '@/database/highlights';
 import { useReadAloud } from '@/hooks/useReadAloud';
+import { prefetchVoices } from '@/services/speechEngine';
 import { splitForSpeech, speechTextForEgwParagraph } from '@/utils/speechText';
 import { PageLoader } from '@/components/ui/PageLoader';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -112,23 +113,30 @@ export default function EgwChapterReaderScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, chapterNumber]);
 
+  // toggleReadAloudOpen/handleCloseReadAloud deliberately depend on readAloud.stop,
+  // not the whole readAloud object — that object's identity changes on every
+  // paragraph transition during active playback (state/activeKey are part of it),
+  // and toggleReadAloudOpen sits in the header's navigation.setOptions()
+  // useLayoutEffect deps below. Depending on the whole object meant the header was
+  // being torn down and rebuilt on every single paragraph while reading.
   const toggleReadAloudOpen = useCallback(() => {
     setReadAloudOpen((v) => {
       if (v) readAloud.stop();
+      else prefetchVoices().catch(() => {});
       return !v;
     });
-  }, [readAloud]);
+  }, [readAloud.stop]);
 
   const handleReadAloudPlayPause = useCallback(() => {
     if (readAloud.state === 'speaking') readAloud.pause();
     else if (readAloud.state === 'paused') readAloud.resume();
     else readAloud.play(readAloudChunks);
-  }, [readAloud, readAloudChunks]);
+  }, [readAloud.state, readAloud.pause, readAloud.resume, readAloud.play, readAloudChunks]);
 
   const handleCloseReadAloud = useCallback(() => {
     readAloud.stop();
     setReadAloudOpen(false);
-  }, [readAloud]);
+  }, [readAloud.stop]);
 
   const scrollRef = useRef<ScrollView>(null);
   const paragraphLayouts = useRef<Map<number, number>>(new Map());

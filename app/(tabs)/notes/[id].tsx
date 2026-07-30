@@ -175,9 +175,17 @@ export default function NoteEditorScreen() {
     };
   }, []);
 
+  // Reads title/contentBefore/contentAfter/category/checklist from latestRef rather
+  // than closing over that state directly, so handleSave's own identity doesn't
+  // change on every keystroke. It sits in the header's navigation.setOptions()
+  // useLayoutEffect deps below — before this, typing a single character rebuilt
+  // the header (Bell/MoreHorizontal/Check icons) on every keystroke, the same class
+  // of bug found and fixed in the Read Aloud feature's header-rebuild-per-verse
+  // issue (see hooks/useReadAloud.ts).
   const handleSave = useCallback(async () => {
     clearTimeout(autosaveTimer.current);
     finalizedRef.current = true;
+    const { title, contentBefore, contentAfter, category, checklist } = latestRef.current;
     if (!title.trim() && !contentBefore.trim() && !contentAfter.trim() && checklist.length === 0) {
       router.back();
       return;
@@ -204,7 +212,7 @@ export default function NoteEditorScreen() {
       }
     }
     router.back();
-  }, [db, existing, title, contentBefore, contentAfter, category, checklist, persist, reminderEnabled, reminderHour, reminderMinute]);
+  }, [db, existing, persist, reminderEnabled, reminderHour, reminderMinute]);
 
   const handleDelete = useCallback(async () => {
     if (existing) {

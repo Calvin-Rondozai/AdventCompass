@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
-import * as Speech from 'expo-speech';
+import type * as SpeechModule from 'expo-speech';
 import { Check } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
+import { getCachedVoices, prefetchVoices } from '@/services/speechEngine';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body, Heading, Label } from '@/components/ui/Typography';
 
@@ -24,7 +25,11 @@ type Props = {
 // "flicking".
 export function VoiceSettingsSheet({ visible, rate, onSelectRate, voice, onSelectVoice, onClose }: Props) {
   const theme = useTheme();
-  const [voices, setVoices] = useState<Speech.Voice[]>([]);
+  // Seeded from cache so a second (or third, from a different reader screen) open of
+  // this sheet in the same session shows the real voice list on the very first
+  // frame — no re-fetch, no "loading" flash. Only the very first call anywhere in
+  // the session actually waits on the native enumeration.
+  const [voices, setVoices] = useState<SpeechModule.Voice[]>(() => getCachedVoices() ?? []);
 
   useEffect(() => {
     if (!visible) return;
@@ -36,9 +41,9 @@ export function VoiceSettingsSheet({ visible, rate, onSelectRate, voice, onSelec
   }, [visible, onClose]);
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || getCachedVoices()) return;
     let cancelled = false;
-    Speech.getAvailableVoicesAsync()
+    prefetchVoices()
       .then((list) => {
         if (!cancelled) setVoices(list);
       })
@@ -52,7 +57,7 @@ export function VoiceSettingsSheet({ visible, rate, onSelectRate, voice, onSelec
   // packs actually get installed (e.g. Android Settings > Accessibility > Text-to-
   // speech > Install voice data) — this list can only show what's already installed.
   const grouped = useMemo(() => {
-    const byLanguage = new Map<string, Speech.Voice[]>();
+    const byLanguage = new Map<string, SpeechModule.Voice[]>();
     for (const v of voices) {
       const list = byLanguage.get(v.language) ?? [];
       list.push(v);
@@ -162,7 +167,11 @@ export function VoiceSettingsSheet({ visible, rate, onSelectRate, voice, onSelec
                       >
                         <View style={{ flex: 1 }}>
                           <Body numberOfLines={1}>{v.name}</Body>
-                          {v.quality === Speech.VoiceQuality.Enhanced && (
+                          {/* Compared as a plain string rather than the SpeechModule.VoiceQuality enum
+                              value — that enum is a real (not const) enum, so referencing its member
+                              would need a runtime import of expo-speech here too, defeating the
+                              deferred-require above just to read "Enhanced" vs "Default". */}
+                          {String(v.quality) === 'Enhanced' && (
                             <Label style={{ color: theme.colors.textFaint }}>Enhanced</Label>
                           )}
                         </View>

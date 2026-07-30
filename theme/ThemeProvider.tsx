@@ -31,9 +31,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
 
   useEffect(() => {
-    getKv(db, THEME_PREFERENCE_KEY).then((value) => {
-      if (value === 'light' || value === 'dark' || value === 'system') setPreferenceState(value);
-    });
+    getKv(db, THEME_PREFERENCE_KEY)
+      .then((value) => {
+        if (value === 'light' || value === 'dark' || value === 'system') setPreferenceState(value);
+      })
+      .catch(() => {});
   }, [db]);
 
   const setPreference = (next: ThemePreference) => {

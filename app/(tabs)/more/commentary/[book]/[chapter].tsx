@@ -8,6 +8,7 @@ import { getCommentaryChapter } from '@/database/sdaCommentary';
 import { findScriptureRefs } from '@/database/scriptureRefs';
 import { VersePopup, VerseRef } from '@/components/bible/VersePopup';
 import { useReadAloud } from '@/hooks/useReadAloud';
+import { prefetchVoices } from '@/services/speechEngine';
 import { splitForSpeech } from '@/utils/speechText';
 import { ArrowLeft, Volume2 } from '@/components/ui/Icon';
 import { PageLoader } from '@/components/ui/PageLoader';
@@ -72,23 +73,29 @@ export default function CommentaryEntriesScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book, chapterNumber]);
 
+  // toggleReadAloudOpen/handleCloseReadAloud deliberately depend on readAloud.stop,
+  // not the whole readAloud object — see the equivalent note in the Bible/EGW
+  // readers: the object's identity changes on every entry transition during active
+  // playback, and toggleReadAloudOpen sits in the header's navigation.setOptions()
+  // useLayoutEffect deps below.
   const toggleReadAloudOpen = useCallback(() => {
     setReadAloudOpen((v) => {
       if (v) readAloud.stop();
+      else prefetchVoices().catch(() => {});
       return !v;
     });
-  }, [readAloud]);
+  }, [readAloud.stop]);
 
   const handleReadAloudPlayPause = useCallback(() => {
     if (readAloud.state === 'speaking') readAloud.pause();
     else if (readAloud.state === 'paused') readAloud.resume();
     else readAloud.play(readAloudChunks);
-  }, [readAloud, readAloudChunks]);
+  }, [readAloud.state, readAloud.pause, readAloud.resume, readAloud.play, readAloudChunks]);
 
   const handleCloseReadAloud = useCallback(() => {
     readAloud.stop();
     setReadAloudOpen(false);
-  }, [readAloud]);
+  }, [readAloud.stop]);
 
   const scrollRef = useRef<ScrollView>(null);
   const entryLayouts = useRef<Map<number, number>>(new Map());

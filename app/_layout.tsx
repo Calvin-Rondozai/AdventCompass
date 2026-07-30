@@ -121,9 +121,22 @@ function RootReady({ onReady }: { onReady: () => void }) {
   }, [theme]);
 
   useEffect(() => {
-    getKv(db, 'onboarding_complete').then((v) => {
-      setNeedsOnboarding(v !== '1');
-    });
+    getKv(db, 'onboarding_complete')
+      .then((v) => {
+        setNeedsOnboarding(v !== '1');
+      })
+      .catch((error) => {
+        // needsOnboarding starting (and staying) null blocks the effect below from
+        // ever calling onReady() — that's the one thing hiding the native splash
+        // screen in the parent, so a read failure here (not just theoretical: disk
+        // I/O error, lock contention) would otherwise hang every single launch on
+        // the splash screen forever with no error visible to the user. Defaulting
+        // to "needs onboarding" is the safe failure direction — re-showing
+        // onboarding is a minor annoyance, silently skipping it for a genuinely new
+        // user would not be.
+        console.error('Failed to read onboarding_complete', error);
+        setNeedsOnboarding(true);
+      });
   }, [db]);
 
   // expo-router's own initial-route resolution isn't reliable enough to trust here —

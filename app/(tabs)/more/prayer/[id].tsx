@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
@@ -31,7 +31,16 @@ export default function PrayerEditorScreen() {
     });
   }, [db, isNew, params.id]);
 
+  // Mirrors latestRef so handleSave doesn't need title/content in its own deps —
+  // it sits in the header's navigation.setOptions() useLayoutEffect deps below, so
+  // depending on title/content directly rebuilt the header on every keystroke. Same
+  // class of bug found and fixed in notes/[id].tsx and in the Read Aloud feature's
+  // header-rebuild-per-verse issue (see hooks/useReadAloud.ts).
+  const latestRef = useRef({ title, content });
+  latestRef.current = { title, content };
+
   const handleSave = useCallback(async () => {
+    const { title, content } = latestRef.current;
     if (!title.trim() && !content.trim()) {
       router.back();
       return;
@@ -42,7 +51,7 @@ export default function PrayerEditorScreen() {
       await updatePrayer(db, existing.id, { title: title.trim() || 'Untitled', content });
     }
     router.back();
-  }, [db, isNew, existing, title, content]);
+  }, [db, isNew, existing]);
 
   const handleDelete = useCallback(async () => {
     if (existing) {

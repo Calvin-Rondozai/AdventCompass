@@ -12,6 +12,7 @@ import { getSabbathAnswers, saveSabbathAnswer } from '@/database/sabbathAnswers'
 import { addSabbathHighlight, getSabbathHighlights, removeSabbathHighlight, SabbathHighlight } from '@/database/sabbathHighlights';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_HEX, HighlightColor } from '@/database/highlights';
 import { useReadAloud } from '@/hooks/useReadAloud';
+import { prefetchVoices } from '@/services/speechEngine';
 import { splitForSpeech } from '@/utils/speechText';
 import { VersePopup, VerseRef } from '@/components/bible/VersePopup';
 import { PageLoader } from '@/components/ui/PageLoader';
@@ -192,17 +193,23 @@ export default function SabbathLessonReaderScreen() {
   const activeScrollRef = useRef<ScrollView>(null);
   const activeBlockLayouts = useRef<Map<number, number>>(new Map());
 
+  // toggleReadAloudOpen/handleCloseReadAloud deliberately depend on readAloud.stop,
+  // not the whole readAloud object — see the equivalent note in the other three
+  // readers: the object's identity changes on every block transition during active
+  // playback, and toggleReadAloudOpen sits in the header's navigation.setOptions()
+  // useLayoutEffect deps below.
   const toggleReadAloudOpen = useCallback(() => {
     setReadAloudOpen((v) => {
       if (v) readAloud.stop();
+      else prefetchVoices().catch(() => {});
       return !v;
     });
-  }, [readAloud]);
+  }, [readAloud.stop]);
 
   const handleCloseReadAloud = useCallback(() => {
     readAloud.stop();
     setReadAloudOpen(false);
-  }, [readAloud]);
+  }, [readAloud.stop]);
 
   useEffect(() => {
     if (id) getQuarterData(db, id).then(setQuarter);
@@ -259,7 +266,7 @@ export default function SabbathLessonReaderScreen() {
     if (readAloud.state === 'speaking') readAloud.pause();
     else if (readAloud.state === 'paused') readAloud.resume();
     else readAloud.play(readAloudChunks);
-  }, [readAloud, readAloudChunks]);
+  }, [readAloud.state, readAloud.pause, readAloud.resume, readAloud.play, readAloudChunks]);
 
   useEffect(() => {
     if (!readAloud.activeKey) return;

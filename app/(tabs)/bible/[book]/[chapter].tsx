@@ -20,6 +20,7 @@ import { useReadingPosition } from '@/hooks/useReadingPosition';
 import { useBibleTranslation } from '@/hooks/useBibleTranslation';
 import { useTabBarVisibility } from '@/hooks/useTabBarVisibility';
 import { useReadAloud } from '@/hooks/useReadAloud';
+import { prefetchVoices } from '@/services/speechEngine';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { TranslationSheet } from '@/components/bible/TranslationSheet';
 import { ReadAloudBar } from '@/components/reader/ReadAloudBar';
@@ -70,9 +71,22 @@ export default function ChapterReaderScreen() {
   const toggleReadAloudOpen = useCallback(() => {
     setReadAloudOpen((v) => {
       if (v) readAloud.stop();
+      // Opening the bar is a clear signal Read Aloud is about to be used — start
+      // warming the device's installed-voices list now, in the background, so the
+      // Settings sheet's voice picker is likely already populated by the time the
+      // user actually taps its gear icon instead of sitting on "loading" there.
+      else prefetchVoices().catch(() => {});
       return !v;
     });
-  }, [readAloud]);
+    // Deliberately depends on readAloud.stop, not the whole readAloud object — that
+    // object's identity changes on every verse transition during active playback
+    // (state/activeKey are part of it), and this callback sits in the header's
+    // navigation.setOptions() useLayoutEffect deps below. Depending on the whole
+    // object meant the header was being torn down and rebuilt on every single verse
+    // while reading, which is exactly the kind of continuous work that both slows
+    // the app down and adds enough JS-thread jitter to make the TTS engine's own
+    // timing (see useReadAloud.ts) less reliable.
+  }, [readAloud.stop]);
 
   const isSelecting = selectedVerses.size > 0;
 
@@ -323,12 +337,12 @@ export default function ChapterReaderScreen() {
     if (readAloud.state === 'speaking') readAloud.pause();
     else if (readAloud.state === 'paused') readAloud.resume();
     else readAloud.play(readAloudChunks, targetVerse != null ? String(targetVerse) : undefined);
-  }, [readAloud, readAloudChunks, targetVerse]);
+  }, [readAloud.state, readAloud.pause, readAloud.resume, readAloud.play, readAloudChunks, targetVerse]);
 
   const handleCloseReadAloud = useCallback(() => {
     readAloud.stop();
     setReadAloudOpen(false);
-  }, [readAloud]);
+  }, [readAloud.stop]);
 
   // Keep the reading position on screen — same idea as the deep-link scroll-to-verse
   // effect above, but re-triggered every time speech advances to a new verse.
