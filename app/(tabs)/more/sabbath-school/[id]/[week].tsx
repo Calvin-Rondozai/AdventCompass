@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, ScrollView, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { X } from '@/components/ui/Icon';
+import { Volume2, X } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { getQuarterData, SabbathDay, SabbathQuarterData } from '@/database/sabbathSchool';
@@ -11,11 +11,15 @@ import { findScriptureRefs } from '@/database/scriptureRefs';
 import { getSabbathAnswers, saveSabbathAnswer } from '@/database/sabbathAnswers';
 import { addSabbathHighlight, getSabbathHighlights, removeSabbathHighlight, SabbathHighlight } from '@/database/sabbathHighlights';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_HEX, HighlightColor } from '@/database/highlights';
+import { useReadAloud } from '@/hooks/useReadAloud';
+import { splitForSpeech } from '@/utils/speechText';
 import { VersePopup, VerseRef } from '@/components/bible/VersePopup';
 import { PageLoader } from '@/components/ui/PageLoader';
 import { Collapsible } from '@/components/sabbath/Collapsible';
 import { DiscussionQuestionCard } from '@/components/sabbath/DiscussionQuestionCard';
 import { PressableScale } from '@/components/ui/PressableScale';
+import { ReadAloudBar } from '@/components/reader/ReadAloudBar';
+import { VoiceSettingsSheet } from '@/components/reader/VoiceSettingsSheet';
 import { Body, Heading, Label } from '@/components/ui/Typography';
 
 const DAY_NAMES = ['Sabbath', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
@@ -182,6 +186,24 @@ export default function SabbathLessonReaderScreen() {
   const swatchHex = HIGHLIGHT_HEX[theme.scheme];
   const isSelecting = anchor != null || pending != null;
 
+  const [readAloudOpen, setReadAloudOpen] = useState(false);
+  const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
+  const readAloud = useReadAloud();
+  const activeScrollRef = useRef<ScrollView>(null);
+  const activeBlockLayouts = useRef<Map<number, number>>(new Map());
+
+  const toggleReadAloudOpen = useCallback(() => {
+    setReadAloudOpen((v) => {
+      if (v) readAloud.stop();
+      return !v;
+    });
+  }, [readAloud]);
+
+  const handleCloseReadAloud = useCallback(() => {
+    readAloud.stop();
+    setReadAloudOpen(false);
+  }, [readAloud]);
+
   useEffect(() => {
     if (id) getQuarterData(db, id).then(setQuarter);
   }, [db, id]);
@@ -202,8 +224,48 @@ export default function SabbathLessonReaderScreen() {
   }, [lesson, dayParam]);
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: lesson ? `Lesson ${lesson.week}` : '' });
-  }, [navigation, lesson]);
+    navigation.setOptions({
+      title: lesson ? `Lesson ${lesson.week}` : '',
+      headerRight: () => (
+        <PressableScale onPress={toggleReadAloudOpen} style={{ padding: theme.spacing.xs }}>
+          <Volume2 size={18} color={readAloudOpen ? theme.colors.primary : theme.colors.text} />
+        </PressableScale>
+      ),
+    });
+  }, [navigation, lesson, theme, readAloudOpen, toggleReadAloudOpen]);
+
+  const activeDayBlocks = lesson?.days[activeDay]?.blocks ?? [];
+  const readAloudChunks = useMemo(
+    () =>
+      activeDayBlocks.flatMap((block, i) => {
+        if (block.type === 'quote' && MEMORY_TEXT_RE.test(block.text)) {
+          return splitForSpeech(String(i), `Memory text. ${block.text.replace(MEMORY_TEXT_RE, '')}`);
+        }
+        return splitForSpeech(String(i), block.text);
+      }),
+    [activeDayBlocks]
+  );
+
+  // A different lesson, week, or day means the old queue no longer matches what's
+  // on screen.
+  useEffect(() => {
+    readAloud.stop();
+    setReadAloudOpen(false);
+    activeBlockLayouts.current = new Map();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quarter?.id, weekNumber, activeDay]);
+
+  const handleReadAloudPlayPause = useCallback(() => {
+    if (readAloud.state === 'speaking') readAloud.pause();
+    else if (readAloud.state === 'paused') readAloud.resume();
+    else readAloud.play(readAloudChunks);
+  }, [readAloud, readAloudChunks]);
+
+  useEffect(() => {
+    if (!readAloud.activeKey) return;
+    const y = activeBlockLayouts.current.get(Number(readAloud.activeKey));
+    if (y != null) activeScrollRef.current?.scrollTo({ y: Math.max(0, y - theme.spacing.lg * 2), animated: true });
+  }, [readAloud.activeKey, theme.spacing.lg]);
 
   // Answers/highlights are keyed by (quarter, week, day) — reload whenever the visible
   // page changes, and drop any in-progress paragraph selection from the day just left.
@@ -295,22 +357,21 @@ export default function SabbathLessonReaderScreen() {
 
   if (!lesson) return <PageLoader />;
 
-  const renderBlock = (block: SabbathDay['blocks'][number], index: number) => {
+  const renderBlock = (block: SabbathDay['blocks'][number], index: number, isActiveDay: boolean) => {
+    const isSpeaking = isActiveDay && readAloud.activeKey === String(index);
+
+    let content: React.ReactNode;
     if (block.type === 'question') {
-      return (
+      content = (
         <DiscussionQuestionCard
-          key={index}
           question={renderBlockText(block.text, theme.colors.primary, setPopupRef)}
           answer={answers.get(index) ?? ''}
           onChangeAnswer={(text) => handleAnswerChange(lesson.days[activeDay].day, index, text)}
         />
       );
-    }
-
-    if (block.type === 'heading') {
-      return (
+    } else if (block.type === 'heading') {
+      content = (
         <Body
-          key={index}
           style={{
             fontFamily: theme.fontFamily.sansSemiBold,
             fontSize: theme.fontSize.base,
@@ -321,70 +382,89 @@ export default function SabbathLessonReaderScreen() {
           {block.text}
         </Body>
       );
-    }
+    } else {
+      const highlightOpts = {
+        pendingColor: theme.colors.primarySoft,
+        blockHighlights: highlights.get(index) ?? [],
+        swatchHex,
+        anchorWord: anchor?.block === index ? anchor.word : null,
+        pendingRange: pending?.block === index ? pending : null,
+        onPressRef: setPopupRef,
+        onWordPress: handleWordPress,
+        onWordLongPress: handleWordLongPress,
+      };
 
-    const highlightOpts = {
-      pendingColor: theme.colors.primarySoft,
-      blockHighlights: highlights.get(index) ?? [],
-      swatchHex,
-      anchorWord: anchor?.block === index ? anchor.word : null,
-      pendingRange: pending?.block === index ? pending : null,
-      onPressRef: setPopupRef,
-      onWordPress: handleWordPress,
-      onWordLongPress: handleWordLongPress,
-    };
-
-    if (block.type === 'quote') {
-      const isMemoryText = MEMORY_TEXT_RE.test(block.text);
-      const body = isMemoryText ? block.text.replace(MEMORY_TEXT_RE, '') : block.text;
-      return (
-        <View
-          key={index}
-          style={{
-            borderLeftWidth: 3,
-            borderLeftColor: theme.colors.accent,
-            backgroundColor: theme.colors.accentSoft,
-            borderRadius: theme.radius.sm,
-            padding: theme.spacing.sm + 2,
-            marginBottom: theme.spacing.sm,
-          }}
-        >
-          {isMemoryText && (
-            <Body style={{ fontFamily: theme.fontFamily.sansBold, color: theme.colors.onAccent, marginBottom: 4 }}>
-              Memory Text:
-            </Body>
-          )}
-          <Body
+      if (block.type === 'quote') {
+        const isMemoryText = MEMORY_TEXT_RE.test(block.text);
+        const body = isMemoryText ? block.text.replace(MEMORY_TEXT_RE, '') : block.text;
+        content = (
+          <View
             style={{
-              fontFamily: theme.fontFamily.serifItalic,
-              fontSize: theme.fontSize.base,
-              lineHeight: theme.lineHeight.base,
-              color: theme.colors.onAccent,
+              borderLeftWidth: 3,
+              borderLeftColor: theme.colors.accent,
+              backgroundColor: theme.colors.accentSoft,
+              borderRadius: theme.radius.sm,
+              padding: theme.spacing.sm + 2,
+              marginBottom: theme.spacing.sm,
             }}
           >
-            {renderHighlightableBlock(body, index, { ...highlightOpts, linkColor: theme.colors.onAccent })}
+            {isMemoryText && (
+              <Body style={{ fontFamily: theme.fontFamily.sansBold, color: theme.colors.onAccent, marginBottom: 4 }}>
+                Memory Text:
+              </Body>
+            )}
+            <Body
+              style={{
+                fontFamily: theme.fontFamily.serifItalic,
+                fontSize: theme.fontSize.base,
+                lineHeight: theme.lineHeight.base,
+                color: theme.colors.onAccent,
+              }}
+            >
+              {renderHighlightableBlock(body, index, { ...highlightOpts, linkColor: theme.colors.onAccent })}
+            </Body>
+          </View>
+        );
+      } else {
+        content = (
+          <Body
+            style={{
+              fontFamily: theme.fontFamily.serifRegular,
+              fontSize: theme.fontSize.md,
+              lineHeight: theme.lineHeight.lg,
+              textAlign: 'justify',
+              marginBottom: theme.spacing.sm,
+            }}
+          >
+            {renderHighlightableBlock(block.text, index, { ...highlightOpts, linkColor: theme.colors.primary })}
           </Body>
-        </View>
-      );
+        );
+      }
     }
 
     return (
-      <Body
+      <View
         key={index}
-        style={{
-          fontFamily: theme.fontFamily.serifRegular,
-          fontSize: theme.fontSize.md,
-          lineHeight: theme.lineHeight.lg,
-          textAlign: 'justify',
-          marginBottom: theme.spacing.sm,
-        }}
+        onLayout={isActiveDay ? (e) => activeBlockLayouts.current.set(index, e.nativeEvent.layout.y) : undefined}
+        style={
+          isSpeaking
+            ? {
+                backgroundColor: theme.colors.primarySoft,
+                borderRadius: theme.radius.sm,
+                borderWidth: 1,
+                borderColor: theme.colors.primary,
+                padding: theme.spacing.xs,
+                marginBottom: theme.spacing.xs,
+              }
+            : undefined
+        }
       >
-        {renderHighlightableBlock(block.text, index, { ...highlightOpts, linkColor: theme.colors.primary })}
-      </Body>
+        {content}
+      </View>
     );
   };
 
-  const renderDayBlocks = (day: SabbathDay) => {
+  const renderDayBlocks = (day: SabbathDay, isActiveDay: boolean) => {
     const nodes: React.ReactNode[] = [];
     let i = 0;
     while (i < day.blocks.length) {
@@ -398,13 +478,13 @@ export default function SabbathLessonReaderScreen() {
         }
         nodes.push(
           <Collapsible key={i} title={block.text}>
-            {group.map(({ block: b, index: bi }) => renderBlock(b, bi))}
+            {group.map(({ block: b, index: bi }) => renderBlock(b, bi, isActiveDay))}
           </Collapsible>
         );
         i = j;
         continue;
       }
-      nodes.push(renderBlock(block, i));
+      nodes.push(renderBlock(block, i, isActiveDay));
       i++;
     }
     return nodes;
@@ -478,18 +558,22 @@ export default function SabbathLessonReaderScreen() {
           const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
           setActiveDay(idx);
         }}
-        renderItem={({ item: day }) => (
-          <ScrollView
-            style={{ width: SCREEN_WIDTH }}
-            contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}
-          >
-            <Label style={{ color: theme.colors.primary, marginBottom: 2 }}>
-              {DAY_NAMES[day.day - 1] ?? `Day ${day.day}`} · {day.date}
-            </Label>
-            <Heading style={{ fontSize: theme.fontSize.lg, marginBottom: theme.spacing.sm }}>{day.title}</Heading>
-            {renderDayBlocks(day)}
-          </ScrollView>
-        )}
+        renderItem={({ item: day, index }) => {
+          const isActiveDay = index === activeDay;
+          return (
+            <ScrollView
+              ref={isActiveDay ? activeScrollRef : undefined}
+              style={{ width: SCREEN_WIDTH }}
+              contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}
+            >
+              <Label style={{ color: theme.colors.primary, marginBottom: 2 }}>
+                {DAY_NAMES[day.day - 1] ?? `Day ${day.day}`} · {day.date}
+              </Label>
+              <Heading style={{ fontSize: theme.fontSize.lg, marginBottom: theme.spacing.sm }}>{day.title}</Heading>
+              {renderDayBlocks(day, isActiveDay)}
+            </ScrollView>
+          );
+        }}
       />
 
       {isSelecting && (
@@ -523,7 +607,31 @@ export default function SabbathLessonReaderScreen() {
         </View>
       )}
 
+      {!isSelecting && readAloudOpen && (
+        <ReadAloudBar
+          state={readAloud.state}
+          label={
+            readAloud.activeKey
+              ? `Reading block ${Number(readAloud.activeKey) + 1}`
+              : `Read ${DAY_NAMES[lesson.days[activeDay]?.day - 1] ?? 'this day'} aloud`
+          }
+          onPlayPause={handleReadAloudPlayPause}
+          onSkipBack={() => readAloud.skip(-1)}
+          onSkipForward={() => readAloud.skip(1)}
+          onOpenSettings={() => setVoiceSettingsOpen(true)}
+          onClose={handleCloseReadAloud}
+        />
+      )}
+
       <VersePopup reference={popupRef} onClose={() => setPopupRef(null)} />
+      <VoiceSettingsSheet
+        visible={voiceSettingsOpen}
+        rate={readAloud.rate}
+        onSelectRate={readAloud.setRate}
+        voice={readAloud.voice}
+        onSelectVoice={readAloud.setVoice}
+        onClose={() => setVoiceSettingsOpen(false)}
+      />
     </SafeAreaView>
   );
 }

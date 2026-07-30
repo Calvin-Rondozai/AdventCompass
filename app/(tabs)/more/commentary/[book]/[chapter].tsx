@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
@@ -7,9 +7,13 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { getCommentaryChapter } from '@/database/sdaCommentary';
 import { findScriptureRefs } from '@/database/scriptureRefs';
 import { VersePopup, VerseRef } from '@/components/bible/VersePopup';
-import { ArrowLeft } from '@/components/ui/Icon';
+import { useReadAloud } from '@/hooks/useReadAloud';
+import { splitForSpeech } from '@/utils/speechText';
+import { ArrowLeft, Volume2 } from '@/components/ui/Icon';
 import { PageLoader } from '@/components/ui/PageLoader';
 import { PressableScale } from '@/components/ui/PressableScale';
+import { ReadAloudBar } from '@/components/reader/ReadAloudBar';
+import { VoiceSettingsSheet } from '@/components/reader/VoiceSettingsSheet';
 import { Body, Heading, Label } from '@/components/ui/Typography';
 
 // Commentary text is full of scripture cross-references ("Psalm 33:6, 9", "Ephesians
@@ -50,6 +54,50 @@ export default function CommentaryEntriesScreen() {
   const chapter = useMemo(() => getCommentaryChapter(book, chapterNumber), [book, chapterNumber]);
   const [popupRef, setPopupRef] = useState<VerseRef>(null);
 
+  const [readAloudOpen, setReadAloudOpen] = useState(false);
+  const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
+  const readAloud = useReadAloud();
+  const readAloudChunks = useMemo(
+    () =>
+      (chapter?.entries ?? []).flatMap((entry, i) => {
+        const label = entry.verseStart === entry.verseEnd ? `Verse ${entry.verseStart}.` : `Verses ${entry.verseStart} to ${entry.verseEnd}.`;
+        return splitForSpeech(String(i), `${label} ${entry.content}`);
+      }),
+    [chapter]
+  );
+
+  useEffect(() => {
+    readAloud.stop();
+    setReadAloudOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book, chapterNumber]);
+
+  const toggleReadAloudOpen = useCallback(() => {
+    setReadAloudOpen((v) => {
+      if (v) readAloud.stop();
+      return !v;
+    });
+  }, [readAloud]);
+
+  const handleReadAloudPlayPause = useCallback(() => {
+    if (readAloud.state === 'speaking') readAloud.pause();
+    else if (readAloud.state === 'paused') readAloud.resume();
+    else readAloud.play(readAloudChunks);
+  }, [readAloud, readAloudChunks]);
+
+  const handleCloseReadAloud = useCallback(() => {
+    readAloud.stop();
+    setReadAloudOpen(false);
+  }, [readAloud]);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const entryLayouts = useRef<Map<number, number>>(new Map());
+  useEffect(() => {
+    if (!readAloud.activeKey) return;
+    const y = entryLayouts.current.get(Number(readAloud.activeKey));
+    if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - theme.spacing.lg * 2), animated: true });
+  }, [readAloud.activeKey, theme.spacing.lg]);
+
   // Reached from the Bible tab by pushing into this (separate) tab's own stack —
   // the default back button would pop within *this* stack's history, landing on
   // the More menu instead of the verse this was opened from. Two things that look
@@ -88,8 +136,13 @@ export default function CommentaryEntriesScreen() {
             </PressableScale>
           )
         : undefined,
+      headerRight: () => (
+        <PressableScale onPress={toggleReadAloudOpen} style={{ padding: theme.spacing.xs }}>
+          <Volume2 size={18} color={readAloudOpen ? theme.colors.primary : theme.colors.text} />
+        </PressableScale>
+      ),
     });
-  }, [navigation, book, chapterNumber, fromVerse, theme, goBackToVerse]);
+  }, [navigation, book, chapterNumber, fromVerse, theme, goBackToVerse, readAloudOpen, toggleReadAloudOpen]);
 
   useEffect(() => {
     if (!fromVerse) return;
@@ -104,30 +157,65 @@ export default function CommentaryEntriesScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>
-      <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}>
+      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}>
         <Heading style={{ marginBottom: theme.spacing.md }}>
           {book} {chapter.number}
         </Heading>
-        {chapter.entries.map((entry, i) => (
-          <View key={i} style={{ marginBottom: theme.spacing.md }}>
-            <Label style={{ marginBottom: 2 }}>
-              {entry.verseStart === entry.verseEnd ? `Verse ${entry.verseStart}` : `Verses ${entry.verseStart}-${entry.verseEnd}`}
-            </Label>
-            <Body
-              selectable
+        {chapter.entries.map((entry, i) => {
+          const isSpeaking = readAloud.activeKey === String(i);
+          return (
+            <View
+              key={i}
+              onLayout={(e) => entryLayouts.current.set(i, e.nativeEvent.layout.y)}
               style={{
-                fontFamily: theme.fontFamily.serifRegular,
-                fontSize: theme.fontSize.md,
-                lineHeight: theme.lineHeight.lg,
-                textAlign: 'justify',
+                marginBottom: theme.spacing.md,
+                backgroundColor: isSpeaking ? theme.colors.primarySoft : 'transparent',
+                borderRadius: theme.radius.sm,
+                borderWidth: isSpeaking ? 1 : 0,
+                borderColor: theme.colors.primary,
+                padding: isSpeaking ? theme.spacing.xs : 0,
               }}
             >
-              {renderEntryText(entry.content, theme.colors.primary, setPopupRef)}
-            </Body>
-          </View>
-        ))}
+              <Label style={{ marginBottom: 2 }}>
+                {entry.verseStart === entry.verseEnd ? `Verse ${entry.verseStart}` : `Verses ${entry.verseStart}-${entry.verseEnd}`}
+              </Label>
+              <Body
+                selectable
+                style={{
+                  fontFamily: theme.fontFamily.serifRegular,
+                  fontSize: theme.fontSize.md,
+                  lineHeight: theme.lineHeight.lg,
+                  textAlign: 'justify',
+                }}
+              >
+                {renderEntryText(entry.content, theme.colors.primary, setPopupRef)}
+              </Body>
+            </View>
+          );
+        })}
       </ScrollView>
+
+      {readAloudOpen && (
+        <ReadAloudBar
+          state={readAloud.state}
+          label={readAloud.activeKey ? `Reading entry ${Number(readAloud.activeKey) + 1}` : `Read chapter ${chapter.number} aloud`}
+          onPlayPause={handleReadAloudPlayPause}
+          onSkipBack={() => readAloud.skip(-1)}
+          onSkipForward={() => readAloud.skip(1)}
+          onOpenSettings={() => setVoiceSettingsOpen(true)}
+          onClose={handleCloseReadAloud}
+        />
+      )}
+
       <VersePopup reference={popupRef} onClose={() => setPopupRef(null)} />
+      <VoiceSettingsSheet
+        visible={voiceSettingsOpen}
+        rate={readAloud.rate}
+        onSelectRate={readAloud.setRate}
+        voice={readAloud.voice}
+        onSelectVoice={readAloud.setVoice}
+        onClose={() => setVoiceSettingsOpen(false)}
+      />
     </SafeAreaView>
   );
 }

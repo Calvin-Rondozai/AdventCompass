@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Modal, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { runOnJS } from 'react-native-reanimated';
-import { ArrowLeft, Bookmark, Columns, ChevronDown, Languages, Library, Link2, NotebookPen, Palette, X } from '@/components/ui/Icon';
+import { ArrowLeft, Bookmark, Columns, ChevronDown, Languages, Library, Link2, NotebookPen, Palette, Volume2, X } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { getChapterVerses, Verse } from '@/database/bible';
@@ -19,8 +19,11 @@ import { getLocalizedBookName } from '@/database/bookNames';
 import { useReadingPosition } from '@/hooks/useReadingPosition';
 import { useBibleTranslation } from '@/hooks/useBibleTranslation';
 import { useTabBarVisibility } from '@/hooks/useTabBarVisibility';
+import { useReadAloud } from '@/hooks/useReadAloud';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { TranslationSheet } from '@/components/bible/TranslationSheet';
+import { ReadAloudBar } from '@/components/reader/ReadAloudBar';
+import { VoiceSettingsSheet } from '@/components/reader/VoiceSettingsSheet';
 import { Body, Label } from '@/components/ui/Typography';
 
 const HIGHLIGHT_HEX: Record<'light' | 'dark', Record<HighlightColor, string>> = {
@@ -61,6 +64,15 @@ export default function ChapterReaderScreen() {
   const [showCompareSheet, setShowCompareSheet] = useState(false);
   const [crossRefVerse, setCrossRefVerse] = useState<number | null>(null);
   const [commentaryVerses, setCommentaryVerses] = useState<Set<number>>(new Set());
+  const [readAloudOpen, setReadAloudOpen] = useState(false);
+  const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
+  const readAloud = useReadAloud();
+  const toggleReadAloudOpen = useCallback(() => {
+    setReadAloudOpen((v) => {
+      if (v) readAloud.stop();
+      return !v;
+    });
+  }, [readAloud]);
 
   const isSelecting = selectedVerses.size > 0;
 
@@ -96,15 +108,20 @@ export default function ChapterReaderScreen() {
         </PressableScale>
       ),
       headerRight: () => (
-        <PressableScale
-          onPress={() => (compareTranslation ? setCompareTranslation(null) : setShowCompareSheet(true))}
-          style={{ padding: theme.spacing.xs }}
-        >
-          <Columns size={18} color={compareTranslation ? theme.colors.primary : theme.colors.text} />
-        </PressableScale>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <PressableScale onPress={toggleReadAloudOpen} style={{ padding: theme.spacing.xs }}>
+            <Volume2 size={18} color={readAloudOpen ? theme.colors.primary : theme.colors.text} />
+          </PressableScale>
+          <PressableScale
+            onPress={() => (compareTranslation ? setCompareTranslation(null) : setShowCompareSheet(true))}
+            style={{ padding: theme.spacing.xs }}
+          >
+            <Columns size={18} color={compareTranslation ? theme.colors.primary : theme.colors.text} />
+          </PressableScale>
+        </View>
       ),
     });
-  }, [navigation, book, chapter, translation, theme, compareTranslation, goBack]);
+  }, [navigation, book, chapter, translation, theme, compareTranslation, goBack, readAloudOpen, toggleReadAloudOpen]);
 
   // Restore the tab bar whenever this screen loses focus or unmounts, so it doesn't
   // stay hidden after navigating away mid-scroll.
@@ -140,9 +157,14 @@ export default function ChapterReaderScreen() {
 
     setSelectedVerses(new Set());
     setShowColorRow(false);
+    // A new chapter/translation means the old read-aloud queue no longer matches
+    // what's on screen — stop rather than let it keep reading stale verses.
+    readAloud.stop();
+    setReadAloudOpen(false);
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [db, translation, book, chapter, setPosition]);
 
   // Scroll to and briefly flash-highlight a verse when this screen was reached via a
@@ -295,6 +317,27 @@ export default function ChapterReaderScreen() {
     router.replace({ pathname: '/bible/[book]/[chapter]', params: { book: ref.book, chapter: String(ref.chapter) } });
   }, []);
 
+  const readAloudChunks = useMemo(() => verses.map((v) => ({ key: String(v.verse), text: v.text })), [verses]);
+
+  const handleReadAloudPlayPause = useCallback(() => {
+    if (readAloud.state === 'speaking') readAloud.pause();
+    else if (readAloud.state === 'paused') readAloud.resume();
+    else readAloud.play(readAloudChunks, targetVerse != null ? String(targetVerse) : undefined);
+  }, [readAloud, readAloudChunks, targetVerse]);
+
+  const handleCloseReadAloud = useCallback(() => {
+    readAloud.stop();
+    setReadAloudOpen(false);
+  }, [readAloud]);
+
+  // Keep the reading position on screen — same idea as the deep-link scroll-to-verse
+  // effect above, but re-triggered every time speech advances to a new verse.
+  useEffect(() => {
+    if (!readAloud.activeKey) return;
+    const y = verseLayouts.current.get(Number(readAloud.activeKey));
+    if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - theme.spacing.lg * 2), animated: true });
+  }, [readAloud.activeKey, theme.spacing.lg]);
+
   const swipeGesture = Gesture.Pan()
     .activeOffsetX([-20, 20])
     .failOffsetY([-12, 12])
@@ -395,6 +438,7 @@ export default function ChapterReaderScreen() {
               const highlightColor = highlights.get(v.verse);
               const isSelected = selectedVerses.has(v.verse);
               const isFlashing = flashVerse === v.verse;
+              const isSpeaking = readAloud.activeKey === String(v.verse);
               return (
                 <View
                   key={v.id}
@@ -402,13 +446,13 @@ export default function ChapterReaderScreen() {
                   style={{
                     flexDirection: 'row',
                     marginBottom: theme.spacing.sm,
-                    backgroundColor: isFlashing
+                    backgroundColor: isFlashing || isSpeaking
                       ? theme.colors.primarySoft
                       : highlightColor
                         ? swatchHex[highlightColor]
                         : 'transparent',
                     borderRadius: theme.radius.sm,
-                    borderWidth: isSelected ? 2 : 0,
+                    borderWidth: isSelected ? 2 : isSpeaking ? 1 : 0,
                     borderColor: theme.colors.primary,
                   }}
                 >
@@ -536,6 +580,22 @@ export default function ChapterReaderScreen() {
         </View>
       )}
 
+      {readAloudOpen && (
+        <ReadAloudBar
+          state={readAloud.state}
+          label={
+            readAloud.activeKey
+              ? `Reading verse ${readAloud.activeKey}`
+              : `Read ${getLocalizedBookName(translation, book)} ${chapter} aloud`
+          }
+          onPlayPause={handleReadAloudPlayPause}
+          onSkipBack={() => readAloud.skip(-1)}
+          onSkipForward={() => readAloud.skip(1)}
+          onOpenSettings={() => setVoiceSettingsOpen(true)}
+          onClose={handleCloseReadAloud}
+        />
+      )}
+
       <TranslationSheet
         visible={showVersionSheet}
         selected={translation}
@@ -547,6 +607,14 @@ export default function ChapterReaderScreen() {
         selected={compareTranslation ?? translation}
         onSelect={setCompareTranslation}
         onClose={() => setShowCompareSheet(false)}
+      />
+      <VoiceSettingsSheet
+        visible={voiceSettingsOpen}
+        rate={readAloud.rate}
+        onSelectRate={readAloud.setRate}
+        voice={readAloud.voice}
+        onSelectVoice={readAloud.setVoice}
+        onClose={() => setVoiceSettingsOpen(false)}
       />
 
       <Modal visible={crossRefVerse !== null} transparent animationType="fade" onRequestClose={() => setCrossRefVerse(null)}>

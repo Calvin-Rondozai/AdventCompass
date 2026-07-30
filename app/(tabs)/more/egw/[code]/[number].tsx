@@ -1,16 +1,20 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { ChevronLeft, ChevronRight, NotebookPen, Palette, X } from '@/components/ui/Icon';
+import { ChevronLeft, ChevronRight, NotebookPen, Palette, Volume2, X } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { EgwBook, getEgwBook } from '@/database/egwBooks';
 import { getEgwHighlightsForChapter, toggleEgwHighlightColor } from '@/database/egwHighlights';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_HEX, HighlightColor } from '@/database/highlights';
+import { useReadAloud } from '@/hooks/useReadAloud';
+import { splitForSpeech, speechTextForEgwParagraph } from '@/utils/speechText';
 import { PageLoader } from '@/components/ui/PageLoader';
 import { PressableScale } from '@/components/ui/PressableScale';
+import { ReadAloudBar } from '@/components/reader/ReadAloudBar';
+import { VoiceSettingsSheet } from '@/components/reader/VoiceSettingsSheet';
 import { Body, Heading, Label } from '@/components/ui/Typography';
 
 // Page markers like "[123]" are kept in the scraped text so the reader can show the
@@ -93,6 +97,47 @@ export default function EgwChapterReaderScreen() {
   const [showColorRow, setShowColorRow] = useState(false);
   const isSelecting = selected.size > 0;
 
+  const [readAloudOpen, setReadAloudOpen] = useState(false);
+  const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
+  const readAloud = useReadAloud();
+  const readAloudChunks = useMemo(
+    () => paragraphs.flatMap((para, i) => splitForSpeech(String(i), speechTextForEgwParagraph(para))),
+    [paragraphs]
+  );
+
+  // A different chapter means the old queue no longer matches what's on screen.
+  useEffect(() => {
+    readAloud.stop();
+    setReadAloudOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, chapterNumber]);
+
+  const toggleReadAloudOpen = useCallback(() => {
+    setReadAloudOpen((v) => {
+      if (v) readAloud.stop();
+      return !v;
+    });
+  }, [readAloud]);
+
+  const handleReadAloudPlayPause = useCallback(() => {
+    if (readAloud.state === 'speaking') readAloud.pause();
+    else if (readAloud.state === 'paused') readAloud.resume();
+    else readAloud.play(readAloudChunks);
+  }, [readAloud, readAloudChunks]);
+
+  const handleCloseReadAloud = useCallback(() => {
+    readAloud.stop();
+    setReadAloudOpen(false);
+  }, [readAloud]);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const paragraphLayouts = useRef<Map<number, number>>(new Map());
+  useEffect(() => {
+    if (!readAloud.activeKey) return;
+    const y = paragraphLayouts.current.get(Number(readAloud.activeKey));
+    if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - theme.spacing.lg * 2), animated: true });
+  }, [readAloud.activeKey, theme.spacing.lg]);
+
   useFocusEffect(
     useCallback(() => {
       if (!code || !chapterNumber) return;
@@ -101,8 +146,15 @@ export default function EgwChapterReaderScreen() {
   );
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: book?.title ?? '' });
-  }, [navigation, book]);
+    navigation.setOptions({
+      title: book?.title ?? '',
+      headerRight: () => (
+        <PressableScale onPress={toggleReadAloudOpen} style={{ padding: theme.spacing.xs }}>
+          <Volume2 size={18} color={readAloudOpen ? theme.colors.primary : theme.colors.text} />
+        </PressableScale>
+      ),
+    });
+  }, [navigation, book, theme, readAloudOpen, toggleReadAloudOpen]);
 
   const toggleSelected = useCallback((i: number) => {
     setSelected((prev) => {
@@ -179,7 +231,7 @@ export default function EgwChapterReaderScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>
-      <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}>
+      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}>
         <View style={{ alignItems: 'center', marginBottom: theme.spacing.lg }}>
           <Label style={{ marginBottom: 4, letterSpacing: 1 }}>CHAPTER {chapter.number}</Label>
           <Heading style={{ textAlign: 'center' }}>{chapter.title}</Heading>
@@ -188,40 +240,42 @@ export default function EgwChapterReaderScreen() {
         {paragraphs.map((para, i) => {
           const color = highlights.get(i);
           const isSelected = selected.has(i);
+          const isSpeaking = readAloud.activeKey === String(i);
           // Printed books indent every paragraph after the first to mark a new one, rather
           // than a blog-style gap between blocks — a subtitled lead-in ("The Child's First
           // Textbook--...") already reads as its own block via renderParagraph's bold lead,
           // so it stays flush like the opening paragraph does.
           const showIndent = i > 0 && !SUBTITLE_RE.test(para);
           return (
-            <PressableScale
-              key={i}
-              onPress={() => isSelecting && toggleSelected(i)}
-              onLongPress={() => toggleSelected(i)}
-              scaleTo={0.995}
-            >
-              <View
-                style={{
-                  backgroundColor: color ? swatchHex[color] : 'transparent',
-                  borderRadius: theme.radius.sm,
-                  borderWidth: isSelected ? 2 : 0,
-                  borderColor: theme.colors.primary,
-                  padding: color || isSelected ? theme.spacing.xs : 0,
-                }}
+            <View key={i} onLayout={(e) => paragraphLayouts.current.set(i, e.nativeEvent.layout.y)}>
+              <PressableScale
+                onPress={() => isSelecting && toggleSelected(i)}
+                onLongPress={() => toggleSelected(i)}
+                scaleTo={0.995}
               >
-                <Body
+                <View
                   style={{
-                    fontFamily: theme.fontFamily.serifRegular,
-                    fontSize: theme.fontSize.md,
-                    lineHeight: theme.lineHeight.lg,
-                    textAlign: 'justify',
+                    backgroundColor: isSpeaking ? theme.colors.primarySoft : color ? swatchHex[color] : 'transparent',
+                    borderRadius: theme.radius.sm,
+                    borderWidth: isSelected ? 2 : isSpeaking ? 1 : 0,
+                    borderColor: theme.colors.primary,
+                    padding: color || isSelected || isSpeaking ? theme.spacing.xs : 0,
                   }}
                 >
-                  {showIndent ? PARAGRAPH_INDENT : ''}
-                  {renderParagraph(para, theme.colors.textFaint, theme.fontFamily.serifBold)}
-                </Body>
-              </View>
-            </PressableScale>
+                  <Body
+                    style={{
+                      fontFamily: theme.fontFamily.serifRegular,
+                      fontSize: theme.fontSize.md,
+                      lineHeight: theme.lineHeight.lg,
+                      textAlign: 'justify',
+                    }}
+                  >
+                    {showIndent ? PARAGRAPH_INDENT : ''}
+                    {renderParagraph(para, theme.colors.textFaint, theme.fontFamily.serifBold)}
+                  </Body>
+                </View>
+              </PressableScale>
+            </View>
           );
         })}
       </ScrollView>
@@ -261,7 +315,21 @@ export default function EgwChapterReaderScreen() {
         </View>
       )}
 
-      {!isSelecting && (
+      {!isSelecting && readAloudOpen && (
+        <ReadAloudBar
+          state={readAloud.state}
+          label={
+            readAloud.activeKey ? `Reading paragraph ${Number(readAloud.activeKey) + 1}` : `Read chapter ${chapter.number} aloud`
+          }
+          onPlayPause={handleReadAloudPlayPause}
+          onSkipBack={() => readAloud.skip(-1)}
+          onSkipForward={() => readAloud.skip(1)}
+          onOpenSettings={() => setVoiceSettingsOpen(true)}
+          onClose={handleCloseReadAloud}
+        />
+      )}
+
+      {!isSelecting && !readAloudOpen && (
         <View
           style={{
             flexDirection: 'row',
@@ -303,6 +371,15 @@ export default function EgwChapterReaderScreen() {
           </PressableScale>
         </View>
       )}
+
+      <VoiceSettingsSheet
+        visible={voiceSettingsOpen}
+        rate={readAloud.rate}
+        onSelectRate={readAloud.setRate}
+        voice={readAloud.voice}
+        onSelectVoice={readAloud.setVoice}
+        onClose={() => setVoiceSettingsOpen(false)}
+      />
     </SafeAreaView>
   );
 }
