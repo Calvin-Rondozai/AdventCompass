@@ -1,9 +1,9 @@
 import { Platform } from 'react-native';
 import type { initLlama as InitLlama, LlamaContext, RNLlamaOAICompatibleMessage, TokenData } from 'llama.rn';
-import { getModelPath } from './aiModel';
 import type { SearchChunk } from '@/database/searchIndex';
 
 let contextPromise: Promise<LlamaContext> | null = null;
+let contextModelPath: string | null = null;
 
 // One shared context for the app's lifetime — reloading an ~800MB model on every
 // question would make each answer as slow as the first. Cleared on failure so a later
@@ -11,31 +11,44 @@ let contextPromise: Promise<LlamaContext> | null = null;
 // call (never a static top-level import) — aiAssistant.ts only reaches this after its
 // AI_INFERENCE_AVAILABLE check, matching how services/notifications.ts avoids ever
 // loading a native module's JS in Expo Go, where merely requiring one can crash the app.
-function getContext(): Promise<LlamaContext> {
-  if (!contextPromise) {
-    const { initLlama }: { initLlama: typeof InitLlama } = require('llama.rn');
-    contextPromise = initLlama({
-      model: getModelPath(),
-      // Sized for this app's actual worst case: system prompt (~200 tokens) + 5 excerpts
-      // (~550 chars/~140 tokens each) + question + up to 2 prior history turns (each
-      // answer capped at MAX_RESPONSE_TOKENS, no continuation turn — see MAX_SECTIONS)
-      // comfortably tops out under 3,000 tokens. n_ctx sizes the KV cache, it doesn't
-      // change per-token compute, so this is a memory-sizing choice, not a speed one.
-      n_ctx: 3072,
-      // Prompt prefill (unlike token-by-token decode) is compute-bound and parallelizes
-      // well, so more threads meaningfully cuts time-to-first-token on multi-core phones —
-      // decode itself is memory-bandwidth-bound and won't scale much past this, but it
-      // doesn't hurt it either.
-      n_threads: 6,
-      // GPU (VRAM) offload is only wired up for iOS/Metal in this llama.rn build —
-      // Android falls back to CPU regardless of this value, so only set it where it
-      // actually does something.
-      ...(Platform.OS === 'ios' ? { n_gpu_layers: 99 } : {}),
-    }).catch((err: unknown) => {
+//
+// Keyed on modelPath (not just "is there a context yet") because the active model can
+// now change mid-session — a user can switch between the downloaded model and an
+// imported one (see aiModel.ts's ModelSourceKind) without restarting the app. Switching
+// releases the previous context's native memory before loading the new one rather than
+// leaking an ~800MB+ model still resident just because nothing referenced it anymore.
+function getContext(modelPath: string): Promise<LlamaContext> {
+  if (contextPromise && contextModelPath === modelPath) return contextPromise;
+
+  const staleContext = contextPromise;
+  contextModelPath = modelPath;
+  const { initLlama }: { initLlama: typeof InitLlama } = require('llama.rn');
+  contextPromise = (staleContext ? staleContext.then((ctx) => ctx.release()).catch(() => {}) : Promise.resolve())
+    .then(() =>
+      initLlama({
+        model: modelPath,
+        // Sized for this app's actual worst case: system prompt (~200 tokens) + 5 excerpts
+        // (~550 chars/~140 tokens each) + question + up to 2 prior history turns (each
+        // answer capped at MAX_RESPONSE_TOKENS, no continuation turn — see MAX_SECTIONS)
+        // comfortably tops out under 3,000 tokens. n_ctx sizes the KV cache, it doesn't
+        // change per-token compute, so this is a memory-sizing choice, not a speed one.
+        n_ctx: 3072,
+        // Prompt prefill (unlike token-by-token decode) is compute-bound and parallelizes
+        // well, so more threads meaningfully cuts time-to-first-token on multi-core phones —
+        // decode itself is memory-bandwidth-bound and won't scale much past this, but it
+        // doesn't hurt it either.
+        n_threads: 6,
+        // GPU (VRAM) offload is only wired up for iOS/Metal in this llama.rn build —
+        // Android falls back to CPU regardless of this value, so only set it where it
+        // actually does something.
+        ...(Platform.OS === 'ios' ? { n_gpu_layers: 99 } : {}),
+      })
+    )
+    .catch((err: unknown) => {
       contextPromise = null;
+      contextModelPath = null;
       throw err;
     });
-  }
   return contextPromise;
 }
 
@@ -46,49 +59,37 @@ function getContext(): Promise<LlamaContext> {
 // and aiAssistant.ts deterministically appends a "Sources" list afterward — so the
 // structure (real answer, then references below it) is guaranteed by code, not by
 // hoping a small model follows a compound instruction.
-const SYSTEM_PROMPT = `You are Hello C, an offline Bible study assistant inside the AdventCompass app.
-You are given numbered excerpts from the Bible, Ellen G. White's writings, the SDA Bible
-Commentary, and the church's 28 Fundamental Beliefs, followed by a question.
+//
+// Kept deliberately short — unlike a cloud model, this is re-sent as fresh prefill on
+// EVERY question with no KV-cache reuse between calls, so every word here is a fixed
+// tax paid before the model even starts answering. An earlier, ~360-word version of
+// this prompt was itself a meaningful share of total response time on a phone CPU;
+// this trims it to the same behavioral rules with far less prose, not fewer rules.
+const SYSTEM_PROMPT = `You are Hello C, an offline Bible study assistant in the AdventCompass app.
+You're given numbered excerpts from the Bible, Ellen G. White's writings, the SDA Bible
+Commentary, or the 28 Fundamental Beliefs, then a question.
 
-Every question comes from someone using a Bible study app, so read ambiguous words in that
-context: "verse" always means a Bible verse (never a poem, song lyric, or paragraph), "the
-church" defaults to the Christian church generally unless a specific one is named, and similar
-everyday words should be read the way a Bible student would mean them, not their broadest
-possible sense. This app is Seventh-day Adventist: when excerpts refer to "the Sabbath" or "the
-seventh-day Sabbath," state plainly that this is Saturday (the seventh day of the week) when it's
-relevant to the question — that is a calendar fact, not an outside claim, so it is fine to state
-even if the excerpt itself only says "seventh day" rather than the word "Saturday."
+This app is Seventh-day Adventist: "verse" means a Bible verse, and "the Sabbath"/"seventh-day
+Sabbath" is Saturday — state that plainly when relevant, even if an excerpt just says "seventh
+day."
 
-Answer the way a well-studied, trusted Bible teacher would — someone speaking with a person, not an
-AI hedging its way through a disclaimer. State things plainly and directly: "Scripture teaches...",
-"The Sabbath is...", not "the excerpt suggests..." or "it seems that...". You are not summarizing a
-document for someone who could read it themselves — they can't see the excerpts, only you, so speak
-in your own voice, with the confidence of someone who actually knows this material, not the voice of
-a tool reporting back what a text said.
-
-Give a complete, direct answer to the question itself: open with a one-sentence answer, then back it
-up properly. When more than one excerpt is genuinely about the same topic, draw on all of them
-together into one coherent answer instead of picking just one and ignoring the rest — that's what
-makes an answer feel well-grounded rather than thin. Use only what the excerpts actually say — do not
-add details, names, or claims that aren't in them, even if they sound plausible, and do not reach for
-outside knowledge to fill a gap. Treat each numbered excerpt as its own independent source: never
-combine or attribute a name, event, or detail from one excerpt to a different, unrelated excerpt just
-because they were retrieved together — synthesize excerpts that are truly about the same thing, never
-force a connection between ones that aren't. If an excerpt is only loosely related to the question and
-doesn't really answer it, say so plainly instead of stretching it into an answer it doesn't support.
-Be thorough enough to actually explain the matter, not just gesture at it — but this is still a chat
-message, not an essay, so get to the point and do not pad or repeat yourself. Do not add citations or
-a sources list yourself; that is handled separately. If none of the excerpts answer the question, say
-plainly that the app's content doesn't cover it — never invent an answer from outside knowledge, and
-never fill the gap with a different excerpt's unrelated content.`;
+Answer like a well-studied Bible teacher speaking directly to a person, not an AI hedging with
+disclaimers ("Scripture teaches...", not "the excerpt suggests..."). Open with a one-sentence
+answer, then back it up. Use only what the excerpts say — never add outside details or fabricate,
+and never blend one excerpt's content into a different one just because they were retrieved
+together; only combine excerpts that are genuinely on the same topic. If an excerpt doesn't really
+answer the question, say so. Be thorough but concise — this is a chat reply, not an essay. Never
+add citations or a sources list yourself; that's handled separately. If nothing here answers the
+question, say plainly that the app's content doesn't cover it — don't invent an answer.`;
 
 // The single biggest lever on response time on a phone-class CPU: total tokens generated
 // is roughly linear in wall-clock time. 384 (tuned for long, multi-paragraph answers) was
 // a direct cause of multi-minute responses; 220 (tuned purely for speed) was too tight for
-// a genuinely thorough, multi-excerpt answer to finish before getting cut off. This is the
-// middle ground — enough room to actually synthesize a few sources together, not so much
-// that a single answer goes back to taking minutes.
-const MAX_RESPONSE_TOKENS = 300;
+// a genuinely thorough, multi-excerpt answer to finish before getting cut off. 300 was the
+// next middle ground; trimmed slightly further here now that the system prompt and
+// per-excerpt length are both cut too (see aiAssistant.ts) — the goal is for every one of
+// these fixed costs to come down together rather than leaning on just one lever.
+const MAX_RESPONSE_TOKENS = 260;
 
 // If a section gets cut off by MAX_RESPONSE_TOKENS rather than finishing naturally, we
 // ask the model to continue as a fresh turn and deliver the continuation as its own
@@ -101,6 +102,18 @@ const MAX_RESPONSE_TOKENS = 300;
 // there rather than paying for a second full prefill to finish it.
 const MAX_SECTIONS = 1;
 
+// Loading the ~800MB model into memory (initLlama) is itself a real, multi-second-plus
+// cost on a phone, and previously only ever started the moment the user sent their
+// first question — meaning that load time landed directly on top of prefill+generation
+// for whatever they typed first, compounding into exactly the kind of wait this whole
+// file is trying to cut down. The AI Assistant screen calls this as soon as it knows
+// offline mode is selected and a model is ready (see ai-assistant.tsx), so the load
+// happens in the background while the user is still reading the greeting or typing,
+// overlapping with time that would otherwise be spent doing nothing.
+export function warmContext(modelPath: string): void {
+  getContext(modelPath).catch(() => {});
+}
+
 export type SectionCallbacks = {
   onToken?: (partialText: string) => void; // live text of whichever section is currently generating
   onSection?: (sectionText: string, isLast: boolean) => void; // fires once per finished section
@@ -112,12 +125,13 @@ export type SectionCallbacks = {
 export type ConversationTurn = { question: string; answer: string };
 
 export async function answerFromContext(
+  modelPath: string,
   question: string,
   chunks: SearchChunk[],
   callbacks?: SectionCallbacks,
   history: ConversationTurn[] = []
 ): Promise<string> {
-  const context = await getContext();
+  const context = await getContext(modelPath);
 
   const excerpts = chunks.map((c, i) => `[${i + 1}] (${c.title}) ${c.text}`).join('\n\n');
   const basePrompt = chunks.length

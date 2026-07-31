@@ -1,23 +1,36 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Animated, FlatList, Keyboard, Platform, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { Info, Sparkles, Download, ArrowUp, Link2 } from '@/components/ui/Icon';
+import { File } from 'expo-file-system';
+import { Sparkles, ArrowUp, Link2, Settings } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import {
+  ActiveModelInfo,
   describeDownloadError,
   downloadModel,
+  getActiveModelInfo,
   getLastDownloadProgress,
+  hasImportedModel,
   hasModel,
+  importModel,
   isDownloadingModel,
+  setModelSource,
   DownloadProgress,
 } from '@/services/aiModel';
-import { AI_INFERENCE_AVAILABLE, askAssistant, ChatMessage, resetConversation } from '@/services/aiAssistant';
+import { AI_INFERENCE_AVAILABLE, askAssistant, ChatMessage, resetConversation, restoreConversationHistory } from '@/services/aiAssistant';
+import { warmContext } from '@/services/llm';
+import { AnswerMode, getAnswerMode, setAnswerMode } from '@/services/aiSettings';
+import { GROQ_AVAILABLE } from '@/services/groqAssistant';
+import { clearChatHistory, loadChatHistory, saveChatHistory } from '@/services/aiChatHistory';
 import { ensureSearchIndexBuilt, resolveSourceLink, SearchChunk } from '@/database/searchIndex';
+import { findScriptureRefs } from '@/database/scriptureRefs';
 import { showAlert } from '@/components/ui/AppAlert';
 import { PressableScale } from '@/components/ui/PressableScale';
+import { AISettingsSheet } from '@/components/ai/AISettingsSheet';
+import { VersePopup, VerseRef } from '@/components/bible/VersePopup';
 import { Body, Label } from '@/components/ui/Typography';
 import { newLocalId } from '@/utils/localId';
 
@@ -38,6 +51,49 @@ function formatTime(date: Date): string {
   const period = h >= 12 ? 'PM' : 'AM';
   const hour12 = h % 12 === 0 ? 12 : h % 12;
   return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
+}
+
+// A cited verse ("John 3:16", "Rom. 5:8") anywhere in an assistant answer becomes
+// tappable, popping up that verse right here instead of the reply just naming a
+// reference the user has to go look up themselves — same pattern already used for
+// commentary entries and Sabbath School lesson text (see findScriptureRefs).
+function renderMessageText(text: string, linkColor: string, onPressRef: (ref: VerseRef) => void) {
+  const refs = findScriptureRefs(text);
+  if (refs.length === 0) return text;
+  const nodes: React.ReactNode[] = [];
+  let cursor = 0;
+  refs.forEach((ref, i) => {
+    if (ref.start > cursor) nodes.push(text.slice(cursor, ref.start));
+    nodes.push(
+      <Body
+        key={i}
+        style={{ color: linkColor, textDecorationLine: 'underline' }}
+        onPress={() => onPressRef({ book: ref.book, chapter: ref.chapter, verse: ref.verse, verseEnd: ref.verseEnd })}
+      >
+        {ref.text}
+      </Body>
+    );
+    cursor = ref.end;
+  });
+  if (cursor < text.length) nodes.push(text.slice(cursor));
+  return nodes;
+}
+
+// Pairs each user message with the assistant message immediately following it — a
+// reasonable approximation of the real Q&A turns askAssistant itself tracks (see
+// conversationHistory in aiAssistant.ts), good enough to seed the model's memory back
+// from a persisted transcript. A user question followed by more than one assistant
+// bubble (a multi-section answer) only contributes its first section here; that's a
+// minor simplification, not a correctness issue — this only feeds a soft form of
+// context, not anything reconstructing the exact original list of chunks used.
+function reconstructTurns(messages: ChatMessage[]): { question: string; answer: string }[] {
+  const turns: { question: string; answer: string }[] = [];
+  for (let i = 0; i < messages.length - 1; i++) {
+    if (messages[i].role === 'user' && messages[i + 1].role === 'assistant') {
+      turns.push({ question: messages[i].text, answer: messages[i + 1].text });
+    }
+  }
+  return turns;
 }
 
 // Cycled while waiting for the model's first token (prompt prefill on a 1B model can
@@ -180,10 +236,15 @@ export default function AIAssistantScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
   const db = useSQLiteContext();
-  const [modelReady, setModelReady] = useState(() => hasModel());
+  const [mode, setMode] = useState<AnswerMode>('offline');
+  const [modelInfo, setModelInfo] = useState<ActiveModelInfo | null>(null);
   const [downloading, setDownloading] = useState(() => isDownloadingModel());
+  const [importing, setImporting] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [popupRef, setPopupRef] = useState<VerseRef>(null);
   const [progress, setProgress] = useState<DownloadProgress | null>(() => getLastDownloadProgress());
   const [messages, setMessages] = useState<(ChatMessage & { at: number })[]>([{ ...GREETING, at: Date.now() }]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [streamingText, setStreamingText] = useState('');
@@ -191,20 +252,77 @@ export default function AIAssistantScreen() {
   const listRef = useRef<FlatList>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
-  // The visible chat log below always starts fresh on mount (just the greeting) — reset
-  // the model's conversation memory to match, so reopening this screen doesn't silently
-  // carry over context from a chat the user can no longer see.
+  // Restores the previous chat transcript instead of always starting fresh with just
+  // the greeting — deliberately does NOT call resetConversation() here (unlike the
+  // previous version). Also reconstructs the model's own follow-up memory
+  // (restoreConversationHistory) from that same stored transcript: without this, the
+  // visible log looked continuous after reopening the screen (or a full app restart)
+  // but the model had no idea any of it happened — the very next message was silently
+  // treated as the start of a brand new conversation instead of a real follow-up.
   useEffect(() => {
+    loadChatHistory(db).then((stored) => {
+      if (stored && stored.length > 0) {
+        setMessages(stored);
+        restoreConversationHistory(reconstructTurns(stored));
+      }
+      setHistoryLoaded(true);
+    });
+  }, [db]);
+
+  // Guarded by historyLoaded so the initial greeting-only state (before we've even
+  // checked kv) never overwrites real stored history with just the greeting.
+  useEffect(() => {
+    if (!historyLoaded) return;
+    saveChatHistory(db, messages);
+  }, [db, messages, historyLoaded]);
+
+  const handleClearChat = useCallback(() => {
     resetConversation();
-  }, []);
+    setMessages([{ ...GREETING, at: Date.now() }]);
+    clearChatHistory(db).catch(() => {});
+    setSettingsVisible(false);
+  }, [db]);
+
+  const refreshModelInfo = useCallback(() => {
+    getActiveModelInfo(db).then(setModelInfo);
+  }, [db]);
+
+  // Both the mode (offline/online) and which offline model is active are persisted —
+  // load them once on mount rather than assuming offline/nothing-downloaded, so
+  // reopening this screen respects whatever was chosen last time.
+  useEffect(() => {
+    getAnswerMode(db).then(setMode);
+    refreshModelInfo();
+  }, [db, refreshModelInfo]);
+
+  // Loading the ~800MB model (initLlama) is itself a real, multi-second-plus cost —
+  // previously it only started the moment the very first question was sent, landing
+  // directly on top of that question's own prefill+generation time. Starting it here
+  // instead, as soon as offline mode is selected and a model is actually ready, lets it
+  // load in the background while the user is still reading the greeting or typing,
+  // so by the time they hit send it's often already warm.
+  useEffect(() => {
+    if (mode === 'offline' && AI_INFERENCE_AVAILABLE && modelInfo?.ready && modelInfo.path) {
+      warmContext(modelInfo.path);
+    }
+  }, [mode, modelInfo]);
+
+  const handleSetMode = useCallback(
+    (next: AnswerMode) => {
+      setMode(next);
+      setAnswerMode(db, next).catch(() => {});
+    },
+    [db]
+  );
 
   // Indexing the app's content for search is a one-time cost (kept once built — see
   // ensureSearchIndexBuilt), but a real one: parsing every EGW book and commentary
-  // volume takes a while on a phone. Running it here — right after the model is ready,
-  // with its own status line — means it's usually already done by the time someone
-  // finishes typing their first question, instead of silently eating that first answer.
+  // volume takes a while on a phone. Running it here (as soon as the screen mounts,
+  // regardless of offline/online mode — both modes retrieve excerpts the same way,
+  // only which model writes the final answer differs) means it's usually already
+  // done by the time someone finishes typing their first question, instead of
+  // silently eating that first answer.
   useEffect(() => {
-    if (!modelReady || !AI_INFERENCE_AVAILABLE) return;
     let cancelled = false;
     ensureSearchIndexBuilt(db, (label) => {
       if (!cancelled) setIndexingLabel(label);
@@ -223,7 +341,7 @@ export default function AIAssistantScreen() {
     return () => {
       cancelled = true;
     };
-  }, [modelReady, db]);
+  }, [db]);
 
   // KeyboardAvoidingView's automatic behaviors are unreliable on Android inside a
   // navigator screen (doubly so in Expo Go, where the manifest-level windowSoftInputMode
@@ -254,6 +372,11 @@ export default function AIAssistantScreen() {
           <Label style={{ fontSize: 10, letterSpacing: 0.5, textAlign: 'center' }}>BIBLE ASSISTANT</Label>
         </View>
       ),
+      headerRight: () => (
+        <PressableScale onPress={() => setSettingsVisible(true)} style={{ padding: theme.spacing.xs }}>
+          <Settings size={20} color={theme.colors.text} strokeWidth={1.75} />
+        </PressableScale>
+      ),
     });
   }, [navigation, theme]);
 
@@ -270,8 +393,10 @@ export default function AIAssistantScreen() {
     if (!isDownloadingModel()) return;
     let cancelled = false;
     downloadModel(setProgress)
-      .then(() => {
-        if (!cancelled) setModelReady(true);
+      .then(async () => {
+        if (cancelled) return;
+        await setModelSource(db, 'download');
+        refreshModelInfo();
       })
       .catch((error) => {
         if (!cancelled) showAlert('Download failed', describeDownloadError(error));
@@ -282,22 +407,49 @@ export default function AIAssistantScreen() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDownload = async () => {
     setDownloading(true);
     try {
       await downloadModel(setProgress);
-      setModelReady(true);
+      // Tapping this always makes the downloaded model the active source — if it's
+      // already on disk (e.g. the user had switched to an imported model), this just
+      // switches back near-instantly rather than actually re-downloading anything.
+      await setModelSource(db, 'download');
+      refreshModelInfo();
     } catch (error) {
-      // downloadModel already cleans up a partial file — leave modelReady false so the
-      // button reappears for a retry. This used to fail completely silently (no message
-      // at all, indistinguishable from the button just not working) and then showed the
-      // raw native exception text — describeDownloadError maps the common cases (no
-      // connection, timeout) to plain language instead.
+      // downloadModel already cleans up a partial file — leave the model not-ready so
+      // the button reappears for a retry. This used to fail completely silently (no
+      // message at all, indistinguishable from the button just not working) and then
+      // showed the raw native exception text — describeDownloadError maps the common
+      // cases (no connection, timeout) to plain language instead.
       showAlert('Download failed', describeDownloadError(error));
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleUseImported = () => {
+    setModelSource(db, 'import')
+      .then(refreshModelInfo)
+      .catch(() => {});
+  };
+
+  const handleImport = async () => {
+    try {
+      // GGUF has no registered MIME type, so this can't usefully filter by type —
+      // importModel() rejects anything whose filename doesn't end in .gguf instead.
+      const picked = await File.pickFileAsync();
+      if (picked.canceled) return;
+      setImporting(true);
+      await importModel(db, picked.result);
+      refreshModelInfo();
+    } catch (error) {
+      showAlert('Import failed', error instanceof Error ? error.message : "Couldn't import that file.");
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -335,7 +487,7 @@ export default function AIAssistantScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>
       <View style={{ flex: 1, paddingBottom: keyboardHeight }}>
-        {!AI_INFERENCE_AVAILABLE && (
+        {mode === 'offline' && !modelInfo?.ready && (
           <View
             style={{
               flexDirection: 'row',
@@ -347,55 +499,35 @@ export default function AIAssistantScreen() {
               borderRadius: theme.radius.md,
             }}
           >
-            <Info size={16} color={theme.colors.accent} strokeWidth={1.75} style={{ marginTop: 2 }} />
+            <Settings size={16} color={theme.colors.accent} strokeWidth={1.75} style={{ marginTop: 2 }} />
             <Body style={{ flex: 1, marginLeft: theme.spacing.xs, fontSize: theme.fontSize.sm, color: theme.colors.onAccent }}>
-              {modelReady
-                ? "Model downloaded and ready. This banner stays until you're running a development build. Expo Go can't load the on-device model at all. Run npx expo prebuild then npx expo run:android (or run:ios) to install one."
-                : "Live answers need a development build (an on-device model, no internet at chat time). You can download the model now so it's ready the moment that build exists."}
+              {AI_INFERENCE_AVAILABLE
+                ? 'Set up the offline AI model in Settings (gear icon above) to get started.'
+                : "Offline answers need a development build. You can still set up the model in Settings now so it's ready the moment that build exists."}
             </Body>
           </View>
         )}
 
-        {!modelReady && (
-          <View style={{ padding: theme.spacing.lg }}>
-            <PressableScale onPress={handleDownload} scaleTo={0.98} disabled={downloading}>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: theme.colors.primary,
-                  borderRadius: theme.radius.md,
-                  padding: theme.spacing.sm + 2,
-                  opacity: downloading ? 0.7 : 1,
-                }}
-              >
-                <Download size={16} color={theme.colors.onPrimary} strokeWidth={2} />
-                <Body style={{ color: theme.colors.onPrimary, fontFamily: theme.fontFamily.sansSemiBold, marginLeft: theme.spacing.xs }}>
-                  {downloading ? 'Downloading model…' : 'Download AI model (~800 MB)'}
-                </Body>
-              </View>
-            </PressableScale>
-            {downloading && progress && progress.totalBytes > 0 && (
-              <View style={{ marginTop: theme.spacing.sm }}>
-                <View style={{ height: 6, borderRadius: 3, backgroundColor: theme.colors.surfaceMuted, overflow: 'hidden' }}>
-                  <View
-                    style={{
-                      height: '100%',
-                      width: `${Math.min(100, (progress.bytesWritten / progress.totalBytes) * 100)}%`,
-                      backgroundColor: theme.colors.primary,
-                    }}
-                  />
-                </View>
-                <Label style={{ marginTop: 4, textAlign: 'center' }}>
-                  {formatBytes(progress.bytesWritten)} / {formatBytes(progress.totalBytes)}
-                </Label>
-              </View>
-            )}
+        {mode === 'online' && !GROQ_AVAILABLE && (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'flex-start',
+              backgroundColor: theme.colors.accentSoft,
+              padding: theme.spacing.sm + 2,
+              margin: theme.spacing.lg,
+              marginBottom: 0,
+              borderRadius: theme.radius.md,
+            }}
+          >
+            <Settings size={16} color={theme.colors.accent} strokeWidth={1.75} style={{ marginTop: 2 }} />
+            <Body style={{ flex: 1, marginLeft: theme.spacing.xs, fontSize: theme.fontSize.sm, color: theme.colors.onAccent }}>
+              Online mode isn't configured yet. Switch to Offline in Settings (gear icon above), or ask again once it's set up.
+            </Body>
           </View>
         )}
 
-        {modelReady && indexingLabel && (
+        {mode === 'offline' && modelInfo?.ready && indexingLabel && (
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.sm }}>
             <Label style={{ color: theme.colors.textMuted, flex: 1 }} numberOfLines={1}>
               Preparing offline content… {indexingLabel}
@@ -446,7 +578,7 @@ export default function AIAssistantScreen() {
                   }}
                 >
                   <Body style={{ color: item.role === 'user' ? theme.colors.onPrimary : theme.colors.text, lineHeight: theme.lineHeight.base }}>
-                    {item.text}
+                    {item.role === 'assistant' ? renderMessageText(item.text, theme.colors.primary, setPopupRef) : item.text}
                   </Body>
                 </View>
               </View>
@@ -510,6 +642,26 @@ export default function AIAssistantScreen() {
           </PressableScale>
         </View>
       </View>
+
+      <AISettingsSheet
+        visible={settingsVisible}
+        onClose={() => setSettingsVisible(false)}
+        mode={mode}
+        onSelectMode={handleSetMode}
+        groqAvailable={GROQ_AVAILABLE}
+        aiInferenceAvailable={AI_INFERENCE_AVAILABLE}
+        modelInfo={modelInfo}
+        hasDownloadedModel={hasModel()}
+        hasImportedModelFile={hasImportedModel()}
+        downloading={downloading}
+        importing={importing}
+        progress={progress}
+        onDownload={handleDownload}
+        onImport={handleImport}
+        onUseImported={handleUseImported}
+        onClearChat={handleClearChat}
+      />
+      <VersePopup reference={popupRef} onClose={() => setPopupRef(null)} />
     </SafeAreaView>
   );
 }

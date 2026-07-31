@@ -1,7 +1,9 @@
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { hasModel } from './aiModel';
+import { getActiveModelInfo } from './aiModel';
 import { answerFromContext, ConversationTurn } from './llm';
+import { getAnswerMode } from './aiSettings';
+import { answerOnlineFromContext, describeGroqError, GROQ_AVAILABLE } from './groqAssistant';
 import { ensureSearchIndexBuilt, searchContent, SearchChunk } from '@/database/searchIndex';
 import { getVerseRange } from '@/database/bible';
 import { findScriptureRefs } from '@/database/scriptureRefs';
@@ -19,8 +21,25 @@ export type ChatMessage = { id: string; role: 'user' | 'assistant'; text: string
 // excerpt to actually draw on — the system prompt now explicitly asks the model to
 // synthesize every excerpt that's genuinely on-topic rather than picking just one, and it
 // can't do that with too little material. This does cost more prefill time than 3 did;
-// n_ctx and MAX_RESPONSE_TOKENS in llm.ts were both re-tuned to match.
+// n_ctx and MAX_RESPONSE_TOKENS in llm.ts were both re-tuned to match. Fine for the cloud
+// model (see ONLINE below) — Groq's own latency dwarfs the extra prefill. The on-device
+// model doesn't get that luxury; see OFFLINE_SEARCH_RESULT_LIMIT below.
 const SEARCH_RESULT_LIMIT = 5;
+// Every excerpt (~140 tokens each) is fixed prefill cost paid on a phone CPU with no
+// KV-cache reuse between questions (see llm.ts) — 2 fewer excerpts than the cloud path
+// gets, plus each one truncated (below), meaningfully cuts prefill on every single
+// offline question in exchange for a somewhat less richly-cross-referenced answer.
+const OFFLINE_SEARCH_RESULT_LIMIT = 3;
+// Chunk text can run up to ~550 chars (a full EGW/commentary paragraph) — trimmed
+// per-excerpt for the offline model specifically, since a 1B model rarely needs the
+// entire paragraph to answer, and every character here is more prefill.
+const OFFLINE_EXCERPT_MAX_CHARS = 350;
+
+function trimForOffline(chunks: SearchChunk[]): SearchChunk[] {
+  return chunks.slice(0, OFFLINE_SEARCH_RESULT_LIMIT).map((c) =>
+    c.text.length > OFFLINE_EXCERPT_MAX_CHARS ? { ...c, text: `${c.text.slice(0, OFFLINE_EXCERPT_MAX_CHARS)}…` } : c
+  );
+}
 // Raw-list requests ("give me verses about X") never touch the model — see wantsRawContent
 // below — so there's no speed cost to returning more of them, only a straight SQL LIMIT.
 const RAW_LIST_RESULT_LIMIT = 10;
@@ -178,17 +197,39 @@ export type AssistantCallbacks = {
 
 // Recent real Q&A turns (not greetings or direct verse lookups — those aren't the kind
 // of thing a follow-up question refers back to), fed into the model as actual
-// conversation history so "what about verse 17?" resolves against what was just
-// discussed. Kept small: each extra turn adds prompt tokens on every question after it.
-const MAX_HISTORY_TURNS = 2;
+// conversation history so a short follow-up ("where is that found?", "give me the
+// proof", "what about verse 17?") resolves against what was just discussed instead of
+// looking like a fresh, context-free (and easily mistaken for off-topic) question.
+//
+// Two different caps: the offline on-device model pays for every turn of history as
+// fresh prefill on a phone CPU with no KV-cache reuse between questions (see llm.ts) —
+// kept to just the single most recent turn so a follow-up still has SOME context
+// without history itself becoming a growing tax on every later question. The cloud
+// model has no such constraint and Groq's own latency is negligible even with more
+// history, so the stored history itself is kept generously larger (enough for a
+// genuinely long, ChatGPT-style continuous conversation) and each call site slices
+// down to whatever that path can actually afford.
+const MAX_STORED_HISTORY_TURNS = 20;
+const MAX_OFFLINE_HISTORY_TURNS = 1;
 let conversationHistory: ConversationTurn[] = [];
 
-// The UI calls this when the chat screen mounts, so leaving and reopening the AI tab
-// starts a clean conversation — matching the visible chat log, which also resets on
-// mount. Without this, the model would "remember" a conversation the screen no longer
-// shows any trace of.
+// Explicit "Clear chat history" only (see the AI Assistant screen's settings sheet) —
+// this used to also run on every screen mount, but the visible chat log is now
+// persisted and restored on mount too (see aiChatHistory.ts / restoreConversationHistory
+// below), so resetting here unconditionally would have silently wiped the model's memory
+// of a conversation still sitting right there on screen.
 export function resetConversation(): void {
   conversationHistory = [];
+}
+
+// Called once after the UI loads the persisted chat transcript, so a re-opened session
+// (or one resumed after a full app restart) has the model actually remembering what's
+// visibly still on screen — without this, the transcript looked continuous but the
+// model treated the very next message as the start of a brand new conversation, since
+// `conversationHistory` is otherwise only ever built up from turns exchanged in the
+// current in-memory session.
+export function restoreConversationHistory(turns: ConversationTurn[]): void {
+  conversationHistory = turns.slice(-MAX_STORED_HISTORY_TURNS);
 }
 
 // A long answer arrives as more than one call to onSection (see answerFromContext's
@@ -210,6 +251,8 @@ export async function askAssistant(question: string, db: SQLiteDatabase, callbac
     return;
   }
 
+  const mode = await getAnswerMode(db);
+
   await ensureSearchIndexBuilt(db);
   // A short follow-up ("what about verse 17?") often has little search signal of its
   // own — folding in the previous question's words gives keyword search something to
@@ -218,11 +261,14 @@ export async function askAssistant(question: string, db: SQLiteDatabase, callbac
     ? `${conversationHistory[conversationHistory.length - 1].question} ${question}`
     : question;
 
-  // Raw-list requests are pure search + formatting — no reasoning or explanation needed,
-  // so this doesn't touch the model at all (and works even before it's downloaded). Its own,
-  // larger search (RAW_LIST_RESULT_LIMIT) is independent of the LLM path's tighter one below —
-  // more excerpts here is free (a bigger SQL LIMIT), not the prefill cost it'd be for the model.
-  if (wantsRawContent(question)) {
+  // Raw-list requests are pure search + formatting, with no reasoning or explanation —
+  // deliberately offline-only. That bypass exists because the tiny on-device model
+  // tends to paraphrase (or drift from) verses it's asked to quote verbatim; the online
+  // cloud model doesn't have that problem and its own system prompt already tells it
+  // not to fabricate quotations, so routing "give me the proof"-style requests here too
+  // was actively hurting online mode — it turned a real follow-up question into a bare
+  // excerpt dump (or "nothing found") instead of a real, cited answer.
+  if (mode === 'offline' && wantsRawContent(question)) {
     const rawChunks = await searchContent(db, searchQuery, RAW_LIST_RESULT_LIMIT);
     if (!rawChunks.length) {
       callbacks?.onSection?.("I couldn't find anything matching that in the app's content — try rephrasing.");
@@ -231,25 +277,49 @@ export async function askAssistant(question: string, db: SQLiteDatabase, callbac
     const text = `${formatRawChunks(rawChunks)}\n\nWant me to explain any of these?`;
     callbacks?.onSection?.(text, rawChunks);
     conversationHistory.push({ question, answer: text });
-    if (conversationHistory.length > MAX_HISTORY_TURNS) conversationHistory.shift();
+    if (conversationHistory.length > MAX_STORED_HISTORY_TURNS) conversationHistory.shift();
     return;
   }
 
   const chunks = await searchContent(db, searchQuery, SEARCH_RESULT_LIMIT);
 
+  if (mode === 'online') {
+    if (!GROQ_AVAILABLE) {
+      callbacks?.onSection?.("Online AI isn't set up yet. Switch to offline mode in AI settings, or ask again once it's configured.");
+      return;
+    }
+    try {
+      const rawText = await answerOnlineFromContext(question, chunks, conversationHistory, callbacks?.onToken);
+      const trimmed = rawText.trim();
+      const sectionText = trimmed || "I'm not sure — I don't have a confident answer for that one.";
+      const displayText = trimmed ? `${sectionText}\n\n${randomFollowUp()}` : sectionText;
+      callbacks?.onSection?.(displayText, chunks.length ? chunks : undefined);
+      conversationHistory.push({ question, answer: sectionText });
+      if (conversationHistory.length > MAX_STORED_HISTORY_TURNS) conversationHistory.shift();
+    } catch (error) {
+      callbacks?.onSection?.(describeGroqError(error));
+    }
+    return;
+  }
+
   if (!AI_INFERENCE_AVAILABLE) {
     callbacks?.onSection?.("AI answers aren't available in Expo Go. This needs a development build with the on-device model wired up.");
     return;
   }
-  if (!hasModel()) {
-    callbacks?.onSection?.('Download the AI model above first, then ask again.');
+  const modelInfo = await getActiveModelInfo(db);
+  if (!modelInfo.ready || !modelInfo.path) {
+    callbacks?.onSection?.('Set up the AI model above first (download or import), then ask again.');
     return;
   }
 
   const rawSections: string[] = [];
   await answerFromContext(
+    modelInfo.path,
     question,
-    chunks,
+    // Fewer, shorter excerpts than what's shown in the "Sources" chips below (which
+    // still use the full, untruncated `chunks` — see onSection) — this trimmed set
+    // only feeds the model's prompt, cutting prefill without hiding any source link.
+    trimForOffline(chunks),
     {
       onToken: callbacks?.onToken,
       onSection: (rawSectionText, isLast) => {
@@ -268,9 +338,11 @@ export async function askAssistant(question: string, db: SQLiteDatabase, callbac
         callbacks?.onSection?.(displayText, isLast && chunks.length ? chunks : undefined);
       },
     },
-    conversationHistory
+    // Sliced to the offline model's own carefully-tuned budget (see n_ctx in llm.ts) —
+    // conversationHistory itself is stored more generously for the online path above.
+    conversationHistory.slice(-MAX_OFFLINE_HISTORY_TURNS)
   );
 
   conversationHistory.push({ question, answer: rawSections.join(' ') });
-  if (conversationHistory.length > MAX_HISTORY_TURNS) conversationHistory.shift();
+  if (conversationHistory.length > MAX_STORED_HISTORY_TURNS) conversationHistory.shift();
 }

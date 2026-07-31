@@ -33,7 +33,9 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# local env files (includes the Groq API key used by the online AI Assistant mode —
+# see services/groqAssistant.ts. Never commit this; copy .env.example instead.)
+.env
 .env*.local
 
 # typescript

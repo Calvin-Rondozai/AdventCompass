@@ -1,4 +1,6 @@
 import { File, Paths } from 'expo-file-system';
+import type { SQLiteDatabase } from 'expo-sqlite';
+import { getKv, setKv } from '@/database/kv';
 
 // The model is downloaded once, on first use, and cached in the app's document
 // directory — after that, the AI Assistant runs fully offline. Nothing about this file
@@ -114,4 +116,82 @@ export function describeDownloadError(err: unknown): string {
 export function deleteModel(): void {
   const file = modelFile();
   if (file.exists) file.delete();
+}
+
+// A user can either download the app's bundled model (above) or import their own GGUF
+// file — e.g. a different fine-tune/quantization they already have, or one downloaded
+// separately without waiting on this app's fetch. Whichever was picked most recently is
+// "active"; switching doesn't delete the other one, so flipping back and forth doesn't
+// force a re-download/re-import.
+export type ModelSourceKind = 'download' | 'import';
+
+const MODEL_SOURCE_KEY = 'ai_model_source';
+const IMPORTED_MODEL_NAME_KEY = 'ai_imported_model_name';
+// Imported files are copied to this fixed name rather than kept at their picked
+// location — a content:// URI from the system picker isn't guaranteed to stay valid
+// across app restarts (the granted permission can be revoked, the source app can move
+// or delete it), and llama.rn's native loader needs a real, stable file:// path anyway.
+const IMPORTED_MODEL_FILENAME = 'imported-model.gguf';
+
+function importedModelFile(): File {
+  return new File(Paths.document, IMPORTED_MODEL_FILENAME);
+}
+
+export type ActiveModelInfo = {
+  source: ModelSourceKind;
+  ready: boolean;
+  importedName: string | null;
+  // The path to hand llama.rn, or null if the active source isn't actually ready yet.
+  path: string | null;
+};
+
+// Lets the UI offer "switch back to your imported model" without re-picking a file —
+// the imported file persists on disk at a fixed path regardless of which source is
+// currently active (see importModel/setModelSource).
+export function hasImportedModel(): boolean {
+  return importedModelFile().exists;
+}
+
+export async function getActiveModelInfo(db: SQLiteDatabase): Promise<ActiveModelInfo> {
+  const [rawSource, importedName] = await Promise.all([
+    getKv(db, MODEL_SOURCE_KEY),
+    getKv(db, IMPORTED_MODEL_NAME_KEY),
+  ]);
+  const source: ModelSourceKind = rawSource === 'import' ? 'import' : 'download';
+
+  if (source === 'import') {
+    const file = importedModelFile();
+    return { source, ready: file.exists, importedName: importedName || null, path: file.exists ? file.uri : null };
+  }
+  const file = modelFile();
+  const ready = isCompleteModelFile(file);
+  return { source, ready, importedName: importedName || null, path: ready ? file.uri : null };
+}
+
+// Only .gguf is a valid llama.cpp model format — anything else picked would fail deep
+// inside llama.rn's native loader with an opaque, unhelpful error, so this rejects it up
+// front with a message the user can actually act on.
+export async function importModel(db: SQLiteDatabase, picked: File): Promise<void> {
+  if (!picked.name.toLowerCase().endsWith('.gguf')) {
+    throw new Error("That doesn't look like a GGUF model file (.gguf). Pick a valid llama.cpp-format model.");
+  }
+  const dest = importedModelFile();
+  if (dest.exists) dest.delete();
+  await picked.copy(dest, { overwrite: true });
+  await setKv(db, MODEL_SOURCE_KEY, 'import');
+  await setKv(db, IMPORTED_MODEL_NAME_KEY, picked.name);
+}
+
+export async function setModelSource(db: SQLiteDatabase, kind: ModelSourceKind): Promise<void> {
+  await setKv(db, MODEL_SOURCE_KEY, kind);
+}
+
+export async function deleteImportedModel(db: SQLiteDatabase): Promise<void> {
+  const file = importedModelFile();
+  if (file.exists) file.delete();
+  await setKv(db, IMPORTED_MODEL_NAME_KEY, '');
+  // If the imported model was the active source, fall back to the downloaded one so the
+  // UI doesn't keep pointing at a model file that no longer exists.
+  const current = await getKv(db, MODEL_SOURCE_KEY);
+  if (current === 'import') await setKv(db, MODEL_SOURCE_KEY, 'download');
 }

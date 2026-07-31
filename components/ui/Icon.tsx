@@ -83,6 +83,7 @@ export const Columns = ColumnsIcon;
 export const Compass = makeIcon('compass');
 export const Delete = makeIcon('backspace');
 export const Download = makeIcon('download');
+export const FolderOpen = makeIcon('folder-open');
 export const Droplets = makeIcon('water');
 export const Dumbbell = makeIcon('barbell');
 export const Flame = makeIcon('flame');
