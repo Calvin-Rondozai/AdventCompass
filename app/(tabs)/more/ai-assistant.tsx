@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Animated, FlatList, Keyboard, Platform, TextInput, View } from 'react-native';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Animated, FlatList, InteractionManager, Keyboard, Platform, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -287,6 +287,14 @@ export default function AIAssistantScreen() {
     getActiveModelInfo(db).then(setModelInfo);
   }, [db]);
 
+  // hasModel()/hasImportedModel() each do a synchronous filesystem stat — cheap once,
+  // but these were previously called inline as JSX props, so they re-ran on every
+  // render of this screen (every streamed token while an answer comes in). Recomputing
+  // only when modelInfo itself changes (the one thing that actually reflects a model
+  // being downloaded/imported/switched) is all that's ever needed.
+  const hasDownloadedModel = useMemo(() => hasModel(), [modelInfo]);
+  const hasImportedModelFile = useMemo(() => hasImportedModel(), [modelInfo]);
+
   // Both the mode (offline/online) and which offline model is active are persisted —
   // load them once on mount rather than assuming offline/nothing-downloaded, so
   // reopening this screen respects whatever was chosen last time.
@@ -301,9 +309,21 @@ export default function AIAssistantScreen() {
   // instead, as soon as offline mode is selected and a model is actually ready, lets it
   // load in the background while the user is still reading the greeting or typing,
   // so by the time they hit send it's often already warm.
+  //
+  // Deferred via runAfterInteractions: initLlama pins most CPU cores for several
+  // seconds on a real phone. Kicking it off the instant this screen mounts meant it was
+  // still mid-load, saturating the CPU, right when someone tapped the header's settings
+  // gear — the AI Settings sheet's own render is cheap, but it had to wait its turn for
+  // the JS thread same as everything else, which read as the sheet "taking forever" to
+  // open. Letting the mount's own interactions (nav transition, an immediate tap) go
+  // first avoids that collision without losing the background-warm behavior.
   useEffect(() => {
     if (mode === 'offline' && AI_INFERENCE_AVAILABLE && modelInfo?.ready && modelInfo.path) {
-      warmContext(modelInfo.path);
+      const path = modelInfo.path;
+      const handle = InteractionManager.runAfterInteractions(() => {
+        warmContext(path);
+      });
+      return () => handle.cancel();
     }
   }, [mode, modelInfo]);
 
@@ -322,24 +342,31 @@ export default function AIAssistantScreen() {
   // only which model writes the final answer differs) means it's usually already
   // done by the time someone finishes typing their first question, instead of
   // silently eating that first answer.
+  // Also deferred via runAfterInteractions, same reasoning as warmContext above — the
+  // first-ever build parses every EGW book and commentary volume, and starting that the
+  // instant the screen mounts competed with the settings gear for the JS thread right
+  // when someone was most likely to tap it.
   useEffect(() => {
     let cancelled = false;
-    ensureSearchIndexBuilt(db, (label) => {
-      if (!cancelled) setIndexingLabel(label);
-    })
-      .catch((error) => {
-        // This is a proactive background warm-up, not a user-initiated action — if it
-        // fails (e.g. the db connection was torn down mid-build by a dev reload), there's
-        // no UI to show an error in. askAssistant() calls ensureSearchIndexBuilt again on
-        // the next real question and retries cleanly, so just log it instead of leaving
-        // it an unhandled rejection (which otherwise surfaces as a scary uncaught error).
-        if (!cancelled) console.error('Background search-index build failed', error);
+    const handle = InteractionManager.runAfterInteractions(() => {
+      ensureSearchIndexBuilt(db, (label) => {
+        if (!cancelled) setIndexingLabel(label);
       })
-      .finally(() => {
-        if (!cancelled) setIndexingLabel(null);
-      });
+        .catch((error) => {
+          // This is a proactive background warm-up, not a user-initiated action — if it
+          // fails (e.g. the db connection was torn down mid-build by a dev reload), there's
+          // no UI to show an error in. askAssistant() calls ensureSearchIndexBuilt again on
+          // the next real question and retries cleanly, so just log it instead of leaving
+          // it an unhandled rejection (which otherwise surfaces as a scary uncaught error).
+          if (!cancelled) console.error('Background search-index build failed', error);
+        })
+        .finally(() => {
+          if (!cancelled) setIndexingLabel(null);
+        });
+    });
     return () => {
       cancelled = true;
+      handle.cancel();
     };
   }, [db]);
 
@@ -651,8 +678,8 @@ export default function AIAssistantScreen() {
         groqAvailable={GROQ_AVAILABLE}
         aiInferenceAvailable={AI_INFERENCE_AVAILABLE}
         modelInfo={modelInfo}
-        hasDownloadedModel={hasModel()}
-        hasImportedModelFile={hasImportedModel()}
+        hasDownloadedModel={hasDownloadedModel}
+        hasImportedModelFile={hasImportedModelFile}
         downloading={downloading}
         importing={importing}
         progress={progress}

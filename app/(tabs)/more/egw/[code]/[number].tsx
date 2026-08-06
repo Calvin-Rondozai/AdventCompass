@@ -122,10 +122,17 @@ export default function EgwChapterReaderScreen() {
   const toggleReadAloudOpen = useCallback(() => {
     setReadAloudOpen((v) => {
       if (v) readAloud.stop();
-      else prefetchVoices().catch(() => {});
       return !v;
     });
   }, [readAloud.stop]);
+
+  // Prefetched on mount rather than only when the bar opens — see the equivalent note
+  // in the Bible reader — so the native voice enumeration (1–3+ seconds on Android) has
+  // the whole time this chapter is open to finish before Read Aloud's settings sheet
+  // is ever actually reached.
+  useEffect(() => {
+    prefetchVoices().catch(() => {});
+  }, []);
 
   const handleReadAloudPlayPause = useCallback(() => {
     if (readAloud.state === 'speaking') readAloud.pause();

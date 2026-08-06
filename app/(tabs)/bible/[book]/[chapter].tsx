@@ -71,11 +71,6 @@ export default function ChapterReaderScreen() {
   const toggleReadAloudOpen = useCallback(() => {
     setReadAloudOpen((v) => {
       if (v) readAloud.stop();
-      // Opening the bar is a clear signal Read Aloud is about to be used — start
-      // warming the device's installed-voices list now, in the background, so the
-      // Settings sheet's voice picker is likely already populated by the time the
-      // user actually taps its gear icon instead of sitting on "loading" there.
-      else prefetchVoices().catch(() => {});
       return !v;
     });
     // Deliberately depends on readAloud.stop, not the whole readAloud object — that
@@ -142,6 +137,17 @@ export default function ChapterReaderScreen() {
   useEffect(() => {
     return () => setTabBarVisible(true);
   }, [setTabBarVisible]);
+
+  // Previously this only fired once the read-aloud bar itself was opened (a clearer
+  // signal of intent), but that left the native voice-enumeration call — 1–3+ seconds
+  // on Android — still in flight when someone opened the bar and went straight for its
+  // settings gear, so the Read Aloud sheet rendered with an empty/"loading" voice list
+  // for however much of that window was left. Starting it here instead, the moment this
+  // screen mounts, gives it the whole time the chapter is being read to finish, so by
+  // the time Read Aloud (and its settings) is actually opened it's already cached.
+  useEffect(() => {
+    prefetchVoices().catch(() => {});
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
