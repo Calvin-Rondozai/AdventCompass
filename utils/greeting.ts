@@ -16,6 +16,22 @@ export function getTimeOfDay(date: Date = new Date()): TimeOfDay {
   return 'evening';
 }
 
+// The plain time-of-day greeting, with no Sabbath override — used for the dashboard's
+// small "Good morning" label, which stays on this even while the big headline switches
+// to "Happy Sabbath"/"Happy Preparation Day".
+export function getTimeGreeting(date: Date = new Date()): string {
+  switch (getTimeOfDay(date)) {
+    case 'night':
+      return 'Good Night';
+    case 'morning':
+      return 'Good Morning';
+    case 'afternoon':
+      return 'Good Afternoon';
+    case 'evening':
+      return 'Good Evening';
+  }
+}
+
 export function getGreeting(date: Date = new Date(), location?: Coordinates | null): string {
   const day = date.getDay(); // 0=Sunday .. 5=Friday, 6=Saturday
 
@@ -31,16 +47,7 @@ export function getGreeting(date: Date = new Date(), location?: Coordinates | nu
     // Past sunset Saturday — Sabbath has ended, fall through to the normal greeting below.
   }
 
-  switch (getTimeOfDay(date)) {
-    case 'night':
-      return 'Good Night';
-    case 'morning':
-      return 'Good Morning';
-    case 'afternoon':
-      return 'Good Afternoon';
-    case 'evening':
-      return 'Good Evening';
-  }
+  return getTimeGreeting(date);
 }
 
 export function formatLongDate(date: Date = new Date()): string {

@@ -3,7 +3,7 @@ import { Image, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { BookHeart, BookOpen, BookMarked, CalendarDays, Download, Gift, Library, Link2, Music, NotebookPen, Sparkles } from '@/components/ui/Icon';
+import { BookHeart, BookOpen, BookMarked, CalendarDays, Download, Gift, Library, Link2, Music, NotebookPen, Sparkles, Volume2, Wifi } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { setKv } from '@/database/kv';
@@ -18,15 +18,17 @@ const FEATURES = [
   { Icon: BookHeart, label: 'Daily devotions' },
   { Icon: BookOpen, label: 'Bible reading plans' },
   { Icon: Gift, label: "Children's sermons" },
+  { Icon: Volume2, label: 'Read Aloud narration for the Bible, EGW books & devotions' },
   { Icon: NotebookPen, label: 'Notes, prayer, and daily habits' },
-  { Icon: Sparkles, label: 'Offline AI Bible Assistant' },
+  { Icon: Sparkles, label: 'AI Bible Assistant, offline or online' },
 ];
 
 const AI_HIGHLIGHTS = [
   { Icon: Sparkles, label: "Ask Hello C anything. It answers from the Bible, all 49 EGW books, commentary, and hymns already in the app" },
   { Icon: Library, label: 'Tap any verse to open matching SDA Bible Commentary' },
   { Icon: Link2, label: 'Follow cross-references to every related verse instantly' },
-  { Icon: Download, label: 'Download the AI model once (~800MB) — after that it answers forever with no internet needed' },
+  { Icon: Download, label: 'Offline mode: download the AI model once (~800MB) — after that it answers forever with no internet needed' },
+  { Icon: Wifi, label: 'Online mode: skip the download and get answers instantly over your connection instead' },
 ];
 
 export default function OnboardingScreen() {

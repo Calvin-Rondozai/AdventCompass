@@ -21,6 +21,39 @@ const LAST_SYNC_KEY = 'sabbath_school_last_sync';
 const WEEKS_PER_QUARTER = 13;
 const DAYS_PER_WEEK = 7;
 
+// Module-level (not tied to any one screen's component state) for the same reason as
+// aiModel.ts's download singleton: the Sabbath School screen can be exited mid-download
+// (large quarters are fetched day-file-by-day-file over a slow connection) and the sync
+// must keep running and keep reporting progress rather than being silently dropped, and a
+// second call — e.g. re-opening the screen — must attach to the one already in flight
+// instead of starting a duplicate.
+export type SyncProgress = { current: number; total: number; label: string };
+let syncTask: Promise<SyncResult> | null = null;
+let syncProgress: SyncProgress | null = null;
+const syncListeners = new Set<(p: SyncProgress | null) => void>();
+
+export function isSyncingSabbathSchool(): boolean {
+  return syncTask !== null;
+}
+
+export function getSabbathSyncProgress(): SyncProgress | null {
+  return syncProgress;
+}
+
+export function getActiveSabbathSyncTask(): Promise<SyncResult> | null {
+  return syncTask;
+}
+
+export function subscribeSabbathSync(listener: (p: SyncProgress | null) => void): () => void {
+  syncListeners.add(listener);
+  return () => syncListeners.delete(listener);
+}
+
+function setSyncProgress(p: SyncProgress | null): void {
+  syncProgress = p;
+  syncListeners.forEach((listener) => listener(p));
+}
+
 async function fetchText(url: string, timeoutMs = 8000): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -140,7 +173,12 @@ function cleanInline(text: string): string {
     .trim();
 }
 
-async function fetchQuarter(lang: string, code: string, edition: string): Promise<SabbathQuarterData | null> {
+async function fetchQuarter(
+  lang: string,
+  code: string,
+  edition: string,
+  onDay?: () => void
+): Promise<SabbathQuarterData | null> {
   const folder = `${code}${edition}`;
   const base = `${REPO_ROOT}/${lang}/${folder}`;
   const infoRaw = await fetchText(`${base}/info.yml`);
@@ -154,6 +192,7 @@ async function fetchQuarter(lang: string, code: string, edition: string): Promis
     for (let day = 1; day <= DAYS_PER_WEEK; day++) {
       const dayCode = String(day).padStart(2, '0');
       const raw = await fetchText(`${base}/${weekCode}/${dayCode}.md`);
+      onDay?.();
       if (!raw) continue;
       const parsed = parseDayFile(raw);
       if (parsed) days.push({ day, title: parsed.title, date: parsed.date, blocks: parsed.blocks });
@@ -186,27 +225,53 @@ export type SyncResult = { synced: boolean; code?: string; reason?: string };
 // from the language picker, never automatically. Only ever moves forward: the current
 // quarter and the next one — past quarters are never auto-downloaded, only kept if
 // already on the device.
-export async function syncSabbathSchool(db: SQLiteDatabase, options: { force?: boolean } = {}): Promise<SyncResult> {
-  const today = new Date();
-  const candidates = [quarterCodeForDate(today), shiftQuarter(quarterCodeForDate(today), 1)];
-  const languages = ['en', 'sn'];
+export function syncSabbathSchool(db: SQLiteDatabase, options: { force?: boolean } = {}): Promise<SyncResult> {
+  if (syncTask) return syncTask;
 
-  let syncedAny = false;
-  for (const lang of languages) {
-    for (const code of candidates) {
-      const id = quarterVariantId(lang, code, '');
-      if (!options.force && (await hasQuarter(db, id))) continue;
-      const quarter = await fetchQuarter(lang, code, '');
-      if (!quarter) continue;
-      await saveQuarter(db, quarter);
-      syncedAny = true;
+  syncTask = (async () => {
+    try {
+      const today = new Date();
+      const candidates = [quarterCodeForDate(today), shiftQuarter(quarterCodeForDate(today), 1)];
+      const languages = ['en', 'sn'];
+
+      // Figure out which (lang, code) pairs actually need fetching up front, so the
+      // progress total reflects real work instead of counting quarters that'll be
+      // skipped instantly because they're already on disk.
+      const pending: { lang: string; code: string }[] = [];
+      for (const lang of languages) {
+        for (const code of candidates) {
+          const id = quarterVariantId(lang, code, '');
+          if (options.force || !(await hasQuarter(db, id))) pending.push({ lang, code });
+        }
+      }
+
+      const totalDays = pending.length * WEEKS_PER_QUARTER * DAYS_PER_WEEK;
+      let doneDays = 0;
+      let syncedAny = false;
+      if (totalDays > 0) setSyncProgress({ current: 0, total: totalDays, label: 'Downloading lessons…' });
+
+      for (const { lang, code } of pending) {
+        const quarter = await fetchQuarter(lang, code, '', () => {
+          doneDays += 1;
+          setSyncProgress({ current: doneDays, total: totalDays, label: 'Downloading lessons…' });
+        });
+        if (!quarter) continue;
+        await saveQuarter(db, quarter);
+        syncedAny = true;
+      }
+
+      if (syncedAny) {
+        await setKv(db, LAST_SYNC_KEY, new Date().toISOString());
+        return { synced: true };
+      }
+      return { synced: false, reason: 'No new quarter available or offline' };
+    } finally {
+      syncTask = null;
+      setSyncProgress(null);
     }
-  }
-  if (syncedAny) {
-    await setKv(db, LAST_SYNC_KEY, new Date().toISOString());
-    return { synced: true };
-  }
-  return { synced: false, reason: 'No new quarter available or offline' };
+  })();
+
+  return syncTask;
 }
 
 const TRANSLATION_LAG_LOOKBACK = 4;
@@ -217,22 +282,39 @@ const TRANSLATION_LAG_LOOKBACK = 4;
 // original, so if the current quarter isn't translated yet, step backward until we find
 // the most recent one that is, rather than reporting "not available" for a quarter that
 // simply hasn't been translated yet.
-export async function syncSpecificQuarter(
+export function syncSpecificQuarter(
   db: SQLiteDatabase,
   lang: string,
   edition: string,
   code: string = quarterCodeForDate(new Date())
 ): Promise<SyncResult> {
-  let candidate = code;
-  for (let i = 0; i <= TRANSLATION_LAG_LOOKBACK; i++) {
-    const quarter = await fetchQuarter(lang, candidate, edition);
-    if (quarter) {
-      await saveQuarter(db, quarter);
-      return { synced: true, code: candidate };
+  if (syncTask) return syncTask;
+
+  syncTask = (async () => {
+    try {
+      const totalDays = (TRANSLATION_LAG_LOOKBACK + 1) * WEEKS_PER_QUARTER * DAYS_PER_WEEK;
+      let doneDays = 0;
+      let candidate = code;
+      for (let i = 0; i <= TRANSLATION_LAG_LOOKBACK; i++) {
+        setSyncProgress({ current: doneDays, total: totalDays, label: `Downloading ${candidate}…` });
+        const quarter = await fetchQuarter(lang, candidate, edition, () => {
+          doneDays += 1;
+          setSyncProgress({ current: doneDays, total: totalDays, label: `Downloading ${candidate}…` });
+        });
+        if (quarter) {
+          await saveQuarter(db, quarter);
+          return { synced: true, code: candidate };
+        }
+        candidate = shiftQuarter(candidate, -1);
+      }
+      return { synced: false, reason: 'Not available for this language/edition yet' };
+    } finally {
+      syncTask = null;
+      setSyncProgress(null);
     }
-    candidate = shiftQuarter(candidate, -1);
-  }
-  return { synced: false, reason: 'Not available for this language/edition yet' };
+  })();
+
+  return syncTask;
 }
 
 export async function getLastSyncTime(db: SQLiteDatabase): Promise<string | null> {

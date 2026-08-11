@@ -2,7 +2,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Bell, ChevronRight, Moon, Monitor, Sun } from '@/components/ui/Icon';
+import { Bell, ChevronRight, HeartPulse, Moon, Monitor, Sun } from '@/components/ui/Icon';
 
 import { useTheme, ThemePreference } from '@/theme/ThemeProvider';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -71,6 +71,29 @@ export default function SettingsScreen() {
             <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
               <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>Reminders</Body>
               <Label style={{ marginTop: 2 }}>Water, prayer, Bible study, Sabbath & more</Label>
+            </View>
+            <ChevronRight size={18} color={theme.colors.textFaint} />
+          </AnimatedCard>
+        </PressableScale>
+
+        <Label style={{ marginBottom: theme.spacing.xs, marginTop: theme.spacing.md }}>Health</Label>
+        <PressableScale onPress={() => router.push('/more/health')} scaleTo={0.99}>
+          <AnimatedCard style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: theme.radius.sm,
+                backgroundColor: theme.colors.primarySoft,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <HeartPulse size={18} color={theme.colors.primary} strokeWidth={1.75} />
+            </View>
+            <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
+              <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>Health & Wellness</Body>
+              <Label style={{ marginTop: 2 }}>Exercise tracking</Label>
             </View>
             <ChevronRight size={18} color={theme.colors.textFaint} />
           </AnimatedCard>

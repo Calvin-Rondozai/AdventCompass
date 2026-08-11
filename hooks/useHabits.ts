@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import {
   addExercise,
@@ -16,6 +17,7 @@ import {
   WeekDay,
 } from '@/database/habits';
 import { getExerciseGoal, getWaterGoal } from '@/database/wellnessGoals';
+import { refreshHomeWidgets } from '@/services/widgetSync';
 
 const STREAK_TYPES: HabitType[] = ['bible_study', 'prayer', 'exercise'];
 const HABIT_TYPES: HabitType[] = ['bible_study', 'prayer', 'water', 'exercise'];
@@ -92,9 +94,14 @@ export function useHabits() {
     }
   }, [db, date]);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  // useFocusEffect (not useEffect) so a goal change made on the Health screen — or any
+  // other water/exercise log elsewhere — is picked up the moment the Home tab regains
+  // focus, instead of only ever refreshing once on this hook's initial mount.
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh])
+  );
 
   // Each of these is fired directly from an onPress with no caller-side error
   // handling — without the catch, a tap that hits a DB error was an unhandled
@@ -104,6 +111,7 @@ export function useHabits() {
       try {
         await toggleHabit(db, type, date);
         await refresh();
+        refreshHomeWidgets();
       } catch (error) {
         console.error('Failed to toggle habit', error);
       }

@@ -18,6 +18,7 @@ import {
   WeekDay,
 } from '@/database/habits';
 import { getExerciseGoal, getWaterGoal, setExerciseGoal, setWaterGoal } from '@/database/wellnessGoals';
+import { refreshHomeWidgets } from '@/services/widgetSync';
 import { AnimatedCard } from '@/components/ui/AnimatedCard';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { ProgressRing } from '@/components/ui/ProgressRing';
@@ -78,18 +79,21 @@ export default function HealthScreen() {
     const next = await addWater(db, date, 250, waterGoal);
     setWaterMl(next);
     refresh();
+    refreshHomeWidgets();
   };
 
   const handleRemoveWater = async () => {
     const next = await addWater(db, date, -250, waterGoal);
     setWaterMl(next);
     refresh();
+    refreshHomeWidgets();
   };
 
   const handleExercise = async () => {
     const next = await addExercise(db, date, 10, exerciseGoal);
     setExerciseMin(next);
     refresh();
+    refreshHomeWidgets();
   };
 
   const openGoalEditor = (which: 'water' | 'exercise') => {
@@ -103,6 +107,7 @@ export default function HealthScreen() {
       if (editingGoal === 'water') await setWaterGoal(db, value * ML_PER_CUP);
       else if (editingGoal === 'exercise') await setExerciseGoal(db, value);
       await refresh();
+      refreshHomeWidgets();
     }
     setEditingGoal(null);
   };

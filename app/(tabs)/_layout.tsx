@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated } from 'react-native';
-import { Tabs, usePathname } from 'expo-router';
+import { Tabs, usePathname, router } from 'expo-router';
 import { BookOpen, Home, MoreHorizontal, Music, NotebookPen } from '@/components/ui/Icon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -29,6 +29,18 @@ export default function TabsLayout() {
   // content height instead of using a fixed height that ignores it.
   const barContentHeight = 58;
   const barHeight = barContentHeight + insets.bottom;
+
+  // Tapping a tab should always land on that tab's own home screen, never wherever its
+  // nested stack happened to be left (e.g. tapping "More" while deep in More > Settings).
+  // Default tabPress behavior only resets to the initial route when the tab is already
+  // focused; preventing it and navigating to the root path ourselves makes that the
+  // behavior every time, focused or not.
+  const resetToRoot = (path: string) => ({
+    tabPress: (e: { preventDefault: () => void }) => {
+      e.preventDefault();
+      router.navigate(path as Parameters<typeof router.navigate>[0]);
+    },
+  });
 
   // Toggling `display: none/flex` (the old approach) is instant — no property to animate —
   // which is exactly the "blink" this replaces. expo-router's own vendored BottomTabBar
@@ -81,6 +93,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen
         name="index"
+        listeners={resetToRoot('/')}
         options={{
           title: 'Home',
           tabBarIcon: ({ focused, color }) => (
@@ -90,6 +103,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="bible"
+        listeners={resetToRoot('/bible')}
         options={{
           title: 'Bible',
           tabBarIcon: ({ focused, color }) => (
@@ -99,6 +113,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="hymnal"
+        listeners={resetToRoot('/hymnal')}
         options={{
           title: 'Hymnal',
           tabBarIcon: ({ focused, color }) => (
@@ -108,6 +123,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="notes"
+        listeners={resetToRoot('/notes')}
         options={{
           title: 'Notes',
           tabBarIcon: ({ focused, color }) => (
@@ -117,6 +133,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="more"
+        listeners={resetToRoot('/more')}
         options={{
           title: 'More',
           tabBarIcon: ({ focused, color }) => (

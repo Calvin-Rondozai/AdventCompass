@@ -1,4 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
+import type { ReadingPlan } from './readingPlans';
 
 export type Verse = { id: number; translation: string; book: string; chapter: number; verse: number; text: string };
 
@@ -32,6 +33,38 @@ export async function getVerseOfDay(
   return db.getFirstAsync<Verse>(
     'SELECT * FROM bible WHERE translation = ? ORDER BY id LIMIT 1 OFFSET ?',
     translation,
+    offset
+  );
+}
+
+// Same daily-pick approach as getVerseOfDay above, but scoped to a reading plan's own
+// books/chapters — used when the user has chosen a plan as their daily-verse source
+// instead of the whole Bible. Deterministic per day/plan, same as the whole-Bible pick.
+export async function getVerseFromPlan(
+  db: SQLiteDatabase,
+  translation: string,
+  plan: ReadingPlan,
+  date: Date = new Date()
+): Promise<Verse | null> {
+  if (!plan.days.length) return null;
+  const seed = date.getUTCFullYear() * 400 + dayOfYear(date);
+  const day = plan.days[scatter(seed, plan.days.length)];
+  if (!day.chapters.length) return null;
+  const chapter = day.chapters[scatter(seed + 1, day.chapters.length)];
+
+  const { count } = (await db.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM bible WHERE translation = ? AND book = ? AND chapter = ?',
+    translation,
+    day.book,
+    chapter
+  )) ?? { count: 0 };
+  if (count === 0) return null;
+  const offset = scatter(seed + 2, count);
+  return db.getFirstAsync<Verse>(
+    'SELECT * FROM bible WHERE translation = ? AND book = ? AND chapter = ? ORDER BY verse LIMIT 1 OFFSET ?',
+    translation,
+    day.book,
+    chapter,
     offset
   );
 }

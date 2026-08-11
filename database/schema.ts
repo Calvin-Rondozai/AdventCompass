@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 export const CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS bible (
@@ -57,6 +57,13 @@ CREATE TABLE IF NOT EXISTS bookmarks (
   book TEXT NOT NULL,
   chapter INTEGER NOT NULL,
   verse INTEGER NOT NULL,
+  created_date TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS hymn_favorites (
+  id INTEGER PRIMARY KEY NOT NULL,
+  language TEXT NOT NULL,
+  number INTEGER NOT NULL,
   created_date TEXT NOT NULL
 );
 
@@ -151,6 +158,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS content_search USING fts5(
 CREATE UNIQUE INDEX IF NOT EXISTS idx_habits_type_date ON habits (habit_type, date);
 CREATE INDEX IF NOT EXISTS idx_bible_lookup ON bible (translation, book, chapter, verse);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmarks_verse ON bookmarks (book, chapter, verse);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_hymn_favorites ON hymn_favorites (language, number);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_highlights_verse ON highlights (book, chapter, verse);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_egw_highlights_para ON egw_highlights (book, chapter, paragraph);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_egw_chapters_lookup ON egw_chapters (book_code, chapter_number);

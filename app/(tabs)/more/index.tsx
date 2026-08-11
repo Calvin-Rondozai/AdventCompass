@@ -11,7 +11,6 @@ import {
   HandCoins,
   Heart,
   HeartHandshake,
-  HeartPulse,
   Info,
   Library,
   ListChecks,
@@ -33,11 +32,10 @@ const MENU = [
   { href: '/more/commentary', Icon: Library, title: 'Bible Commentary', subtitle: 'S.D.A. Bible Commentary, verse by verse' },
   { href: '/more/prayer', Icon: HeartHandshake, title: 'Prayer Journal', subtitle: 'Track prayer requests & answers' },
   { href: '/more/offertory', Icon: HandCoins, title: 'Offertory Reading', subtitle: 'Scripture readings for the offering' },
-  { href: '/more/health', Icon: HeartPulse, title: 'Health & Wellness', subtitle: 'Exercise tracking' },
   { href: '/more/topical-verses', Icon: Heart, title: 'Topical Verses', subtitle: 'Anxiety, grief, joy & more: verses that help' },
   { href: '/more/childrens-sermons', Icon: Gift, title: "Children's Sermons", subtitle: 'Object lessons for worship time' },
   { href: '/more/ai-assistant', Icon: Sparkles, title: 'AI Bible Assistant', subtitle: 'Explain verses & topics' },
-  { href: '/more/settings', Icon: SettingsIcon, title: 'Settings', subtitle: 'Reminders & preferences' },
+  { href: '/more/settings', Icon: SettingsIcon, title: 'Settings', subtitle: 'Reminders, health & preferences' },
   { href: '/more/about', Icon: Info, title: 'About', subtitle: 'Version, contact & credits' },
 ] as const;
 

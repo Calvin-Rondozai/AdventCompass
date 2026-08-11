@@ -1,0 +1,19 @@
+1. on my physical device, its taking forever to download the AI model and the sabbath school lesson, make sure you add a download progression to the sabbath school download and it should be able to do the download even when i exit the sabbath school screen
+2. Widgets for water tank and the add sign, reading progression chat for reading praying exercise and drinking water.
+3. Add to splash screen that it reads and the other functions and sell well the idea on the AI that it has the offline and online options
+4. Move the set number of cups change and exercise to the settings side
+5. be able to copy text from the AI bot
+6. The bot should never answer anything that's not the religious related and should answer as a seventh day Adventist
+7. Be able to select the reading plan you want and it picks a verse from that section
+8. text highlighting or text annotation
+9. Adding fev hymns
+10. Add children's lessons
+11. On note taking, there is typing hinderance
+
+FUTURE
+
+1. Backup your highlights, notes, books marks
+2. Put the AI chat somewhere clear
+3. Redesign UI
+4. Add audi tunes to the hymns
+5. 

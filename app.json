@@ -54,7 +54,34 @@
           "locationWhenInUsePermission": "Used to show an accurate Saturday sunset time so the Sabbath greeting ends at the right moment for your location."
         }
       ],
-      "llama.rn"
+      "llama.rn",
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "WaterTank",
+              "label": "Water Tank",
+              "description": "Today's water intake with a one-tap + to log a cup.",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "WeeklyProgress",
+              "label": "Weekly Progress",
+              "description": "This week's Bible study, prayer, workout and water at a glance.",
+              "targetCellWidth": 4,
+              "targetCellHeight": 3,
+              "minWidth": "250dp",
+              "minHeight": "180dp",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

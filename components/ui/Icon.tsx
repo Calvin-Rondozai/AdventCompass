@@ -65,6 +65,7 @@ export const ChevronDown = makeIcon('chevron-down');
 export const ChevronUp = makeIcon('chevron-up');
 export const ChevronLeft = makeIcon('chevron-back');
 export const ChevronRight = makeIcon('chevron-forward');
+export const Copy = makeIcon('copy', 'copy-outline');
 // Drawn with plain Views rather than an icon font — FontAwesome5's "columns" glyph was
 // a good semantic match (a box split in two) but its font file repeatedly failed to
 // load over the Metro dev server in practice. Two bordered boxes side by side reads the
@@ -99,6 +100,7 @@ export const Library = makeIcon('library');
 export const Link2 = makeIcon('link');
 export const ListChecks = makeIcon('list');
 export const Mail = makeIcon('mail');
+export const Menu = makeIcon('menu');
 export const Minus = makeIcon('remove');
 export const Monitor = makeIcon('desktop');
 export const Moon = makeIcon('moon');
@@ -122,4 +124,5 @@ export const Trash2 = makeIcon('trash');
 export const Trophy = makeIcon('trophy');
 export const User = makeIcon('person');
 export const Volume2 = makeIcon('volume-high');
+export const Wifi = makeIcon('wifi');
 export const X = makeIcon('close');

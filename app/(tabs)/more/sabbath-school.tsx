@@ -14,10 +14,19 @@ import {
   SABBATH_LANGUAGES,
   SabbathQuarterRow,
 } from '@/database/sabbathSchool';
-import { syncSabbathSchool, syncSpecificQuarter } from '@/services/sabbathSchoolSync';
+import {
+  getActiveSabbathSyncTask,
+  getSabbathSyncProgress,
+  isSyncingSabbathSchool,
+  subscribeSabbathSync,
+  SyncProgress,
+  syncSabbathSchool,
+  syncSpecificQuarter,
+} from '@/services/sabbathSchoolSync';
 import { showAlert } from '@/components/ui/AppAlert';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { AnimatedCard } from '@/components/ui/AnimatedCard';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Body, Heading, Label } from '@/components/ui/Typography';
 
 const VIEW_MODE_KEY = 'sabbath_school_view_mode';
@@ -113,11 +122,37 @@ export default function SabbathSchoolScreen() {
   const db = useSQLiteContext();
   const navigation = useNavigation();
   const [quarters, setQuarters] = useState<SabbathQuarterRow[]>([]);
-  const [syncing, setSyncing] = useState(false);
+  // Seeded from module-level state (not just false) so re-opening this screen while a
+  // download kicked off earlier is still in flight shows it as already running, with
+  // real progress, instead of a blank "Check for new lessons" button.
+  const [syncing, setSyncing] = useState(isSyncingSabbathSchool());
+  const [progress, setProgress] = useState<SyncProgress | null>(getSabbathSyncProgress());
   const [lang, setLang] = useState(SABBATH_LANGUAGES[0].code);
   const [edition, setEdition] = useState(SABBATH_EDITIONS[0].code);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [settingsVisible, setSettingsVisible] = useState(false);
+
+  // The download itself is a module-level singleton (see sabbathSchoolSync.ts) that
+  // keeps running even if this screen unmounts — this just mirrors its live state so the
+  // UI reflects whatever's actually happening, whether this screen started the download
+  // or is just re-observing one already in progress.
+  useEffect(() => {
+    const unsubscribe = subscribeSabbathSync((p) => {
+      setProgress(p);
+      setSyncing(isSyncingSabbathSchool());
+    });
+    const active = getActiveSabbathSyncTask();
+    if (active) {
+      active.then((result) => {
+        refresh();
+        if (!result.synced) {
+          showAlert('Up to date', 'No new quarter to download right now. Check your connection or try again later.');
+        }
+      });
+    }
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     getKv(db, VIEW_MODE_KEY).then((v) => {
@@ -164,7 +199,6 @@ export default function SabbathSchoolScreen() {
   const handleUpdate = async () => {
     setSyncing(true);
     const result = await syncSabbathSchool(db, { force: false });
-    setSyncing(false);
     refresh();
     if (!result.synced) {
       showAlert('Up to date', 'No new quarter to download right now. Check your connection or try again later.');
@@ -176,7 +210,6 @@ export default function SabbathSchoolScreen() {
     setSyncing(true);
     const editionSuffix = SABBATH_EDITIONS.find((e) => e.code === edition)?.suffix ?? '';
     const result = await syncSpecificQuarter(db, lang, editionSuffix);
-    setSyncing(false);
     refresh();
     if (!result.synced) {
       showAlert('Not available', "That language/edition isn't available yet. Check your connection or try again later.");
@@ -309,10 +342,22 @@ export default function SabbathSchoolScreen() {
           >
             <Download size={16} color={theme.colors.onPrimary} strokeWidth={2} />
             <Body style={{ color: theme.colors.onPrimary, fontFamily: theme.fontFamily.sansSemiBold, marginLeft: theme.spacing.xs }}>
-              {syncing ? 'Checking…' : 'Check for new lessons'}
+              {syncing ? (progress ? progress.label : 'Checking…') : 'Check for new lessons'}
             </Body>
           </View>
         </PressableScale>
+        {syncing && progress && progress.total > 0 && (
+          <View style={{ marginTop: theme.spacing.sm }}>
+            <ProgressBar
+              progress={progress.current / progress.total}
+              color={theme.colors.primary}
+              trackColor={theme.colors.surfaceMuted}
+            />
+            <Label style={{ marginTop: 4, textAlign: 'center' }}>
+              {Math.round((progress.current / progress.total) * 100)}% · keeps downloading even if you leave this screen
+            </Label>
+          </View>
+        )}
       </View>
 
       <Modal visible={settingsVisible} transparent animationType="fade" onRequestClose={() => setSettingsVisible(false)}>
@@ -361,10 +406,28 @@ export default function SabbathSchoolScreen() {
               >
                 <Download size={16} color={theme.colors.onPrimary} strokeWidth={2} />
                 <Body style={{ color: theme.colors.onPrimary, fontFamily: theme.fontFamily.sansSemiBold, marginLeft: theme.spacing.xs }}>
-                  {syncing ? 'Checking…' : isDefaultVariant ? 'Check for new lessons' : 'Download this language/edition'}
+                  {syncing
+                    ? progress
+                      ? progress.label
+                      : 'Checking…'
+                    : isDefaultVariant
+                      ? 'Check for new lessons'
+                      : 'Download this language/edition'}
                 </Body>
               </View>
             </PressableScale>
+            {syncing && progress && progress.total > 0 && (
+              <View style={{ marginTop: theme.spacing.sm }}>
+                <ProgressBar
+                  progress={progress.current / progress.total}
+                  color={theme.colors.primary}
+                  trackColor={theme.colors.surfaceMuted}
+                />
+                <Label style={{ marginTop: 4, textAlign: 'center' }}>
+                  {Math.round((progress.current / progress.total) * 100)}% · keeps downloading in the background
+                </Label>
+              </View>
+            )}
           </Pressable>
         </Pressable>
       </Modal>

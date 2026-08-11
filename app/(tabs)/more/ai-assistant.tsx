@@ -4,7 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { File } from 'expo-file-system';
-import { Sparkles, ArrowUp, Link2, Settings } from '@/components/ui/Icon';
+import * as Clipboard from 'expo-clipboard';
+import { Sparkles, ArrowUp, Check, Copy, Link2, Settings } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import {
@@ -249,6 +250,7 @@ export default function AIAssistantScreen() {
   const [sending, setSending] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [indexingLabel, setIndexingLabel] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const listRef = useRef<FlatList>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
@@ -480,6 +482,12 @@ export default function AIAssistantScreen() {
     }
   };
 
+  const handleCopy = async (id: string, text: string) => {
+    await Clipboard.setStringAsync(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId((current) => (current === id ? null : current)), 1200);
+  };
+
   const handleSend = async () => {
     const question = input.trim();
     if (!question || sending) return;
@@ -612,15 +620,25 @@ export default function AIAssistantScreen() {
               {item.role === 'assistant' && item.sources && item.sources.length > 0 && (
                 <SourceChips sources={item.sources} />
               )}
-              <Label
+              <View
                 style={{
-                  marginTop: 2,
-                  textAlign: item.role === 'user' ? 'right' : 'left',
+                  flexDirection: item.role === 'user' ? 'row-reverse' : 'row',
+                  alignItems: 'center',
+                  gap: 4,
                   marginLeft: item.role === 'assistant' ? 32 : 0,
                 }}
               >
-                {formatTime(new Date(item.at))}
-              </Label>
+                <Label style={{ marginTop: 2 }}>{formatTime(new Date(item.at))}</Label>
+                {item.role === 'assistant' && (
+                  <PressableScale onPress={() => handleCopy(item.id, item.text)} scaleTo={0.85} style={{ padding: 4 }}>
+                    {copiedId === item.id ? (
+                      <Check size={12} color={theme.colors.success} strokeWidth={2.5} />
+                    ) : (
+                      <Copy size={12} color={theme.colors.textFaint} strokeWidth={1.75} />
+                    )}
+                  </PressableScale>
+                )}
+              </View>
             </View>
           )}
         />
