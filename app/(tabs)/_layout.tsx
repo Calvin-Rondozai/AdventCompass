@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated } from 'react-native';
+import { Animated, View } from 'react-native';
 import { Tabs, usePathname, router } from 'expo-router';
 import { BookOpen, Home, MoreHorizontal, Music, NotebookPen } from '@/components/ui/Icon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme/ThemeProvider';
 import { useTabBarVisibility } from '@/hooks/useTabBarVisibility';
 import { AnimatedTabIcon } from '@/components/navigation/AnimatedTabIcon';
+import { MiniPlayerBar } from '@/components/reader/MiniPlayerBar';
 
 export default function TabsLayout() {
   const theme = useTheme();
@@ -67,30 +68,38 @@ export default function TabsLayout() {
     }
   }, [visible, hideAnim]);
 
+  // Floats just above the tab bar (or the bare safe area, once the bar itself has
+  // slid off-screen) so a background reading keeps its controls reachable no matter
+  // which tab the user wanders off to — it's driven by the global AudioPlayerProvider,
+  // not by any one screen, so it survives the navigation that would otherwise unmount
+  // a per-screen player.
+  const miniPlayerBottom = barDetached ? insets.bottom : barHeight;
+
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarShowLabel: true,
-        tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.textFaint,
-        tabBarStyle: {
-          position: barDetached ? 'absolute' : undefined,
-          transform: [{ translateY: hideAnim.interpolate({ inputRange: [0, 1], outputRange: [0, barHeight] }) }],
-          backgroundColor: theme.colors.surface,
-          borderTopColor: theme.colors.border,
-          borderTopWidth: 1,
-          height: barHeight,
-          paddingTop: 8,
-          paddingBottom: insets.bottom,
-        },
-        tabBarLabelStyle: {
-          fontFamily: theme.fontFamily.sansMedium,
-          fontSize: 11,
-          marginTop: 2,
-        },
-      }}
-    >
+    <View style={{ flex: 1 }}>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarShowLabel: true,
+          tabBarActiveTintColor: theme.colors.primary,
+          tabBarInactiveTintColor: theme.colors.textFaint,
+          tabBarStyle: {
+            position: barDetached ? 'absolute' : undefined,
+            transform: [{ translateY: hideAnim.interpolate({ inputRange: [0, 1], outputRange: [0, barHeight] }) }],
+            backgroundColor: theme.colors.surface,
+            borderTopColor: theme.colors.border,
+            borderTopWidth: 1,
+            height: barHeight,
+            paddingTop: 8,
+            paddingBottom: insets.bottom,
+          },
+          tabBarLabelStyle: {
+            fontFamily: theme.fontFamily.sansMedium,
+            fontSize: 11,
+            marginTop: 2,
+          },
+        }}
+      >
       <Tabs.Screen
         name="index"
         listeners={resetToRoot('/')}
@@ -141,6 +150,10 @@ export default function TabsLayout() {
           ),
         }}
       />
-    </Tabs>
+      </Tabs>
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: miniPlayerBottom }}>
+        <MiniPlayerBar />
+      </View>
+    </View>
   );
 }

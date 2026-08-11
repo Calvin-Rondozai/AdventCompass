@@ -21,10 +21,13 @@ import { useBibleTranslation } from '@/hooks/useBibleTranslation';
 import { useTabBarVisibility } from '@/hooks/useTabBarVisibility';
 import { useReadAloud } from '@/hooks/useReadAloud';
 import { prefetchVoices } from '@/services/speechEngine';
+import { synthesizeChunksToFile } from '@/services/ttsFileEngine';
+import { useAudioPlayerContext } from '@/contexts/AudioPlayerProvider';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { TranslationSheet } from '@/components/bible/TranslationSheet';
 import { ReadAloudBar } from '@/components/reader/ReadAloudBar';
 import { VoiceSettingsSheet } from '@/components/reader/VoiceSettingsSheet';
+import { showAlert } from '@/components/ui/AppAlert';
 import { Body, Label } from '@/components/ui/Typography';
 
 const HIGHLIGHT_HEX: Record<'light' | 'dark', Record<HighlightColor, string>> = {
@@ -67,7 +70,9 @@ export default function ChapterReaderScreen() {
   const [commentaryVerses, setCommentaryVerses] = useState<Set<number>>(new Set());
   const [readAloudOpen, setReadAloudOpen] = useState(false);
   const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
+  const [renderProgress, setRenderProgress] = useState<{ done: number; total: number } | null>(null);
   const readAloud = useReadAloud();
+  const audioPlayer = useAudioPlayerContext();
   const toggleReadAloudOpen = useCallback(() => {
     setReadAloudOpen((v) => {
       if (v) readAloud.stop();
@@ -338,6 +343,7 @@ export default function ChapterReaderScreen() {
   }, []);
 
   const readAloudChunks = useMemo(() => verses.map((v) => ({ key: String(v.verse), text: v.text })), [verses]);
+  const backgroundTitle = useMemo(() => `${getLocalizedBookName(translation, book)} ${chapter}`, [translation, book, chapter]);
 
   const handleReadAloudPlayPause = useCallback(() => {
     if (readAloud.state === 'speaking') readAloud.pause();
@@ -345,18 +351,43 @@ export default function ChapterReaderScreen() {
     else readAloud.play(readAloudChunks, targetVerse != null ? String(targetVerse) : undefined);
   }, [readAloud.state, readAloud.pause, readAloud.resume, readAloud.play, readAloudChunks, targetVerse]);
 
+  // Renders this chapter to a file (real, roughly reading-length wall-clock time — see
+  // ReadAloudBar's progress label) and hands it to the global player instead of speaking
+  // it live, so it can keep playing in the background with a persistent mini player.
+  const handlePlayInBackground = useCallback(async () => {
+    if (renderProgress) return;
+    try {
+      setRenderProgress({ done: 0, total: readAloudChunks.length });
+      const { file, chunkOffsets } = await synthesizeChunksToFile(
+        readAloudChunks,
+        backgroundTitle,
+        { voice: readAloud.voice, rate: readAloud.rate },
+        (done, total) => setRenderProgress({ done, total })
+      );
+      audioPlayer.play(file.uri, backgroundTitle, chunkOffsets);
+    } catch (error) {
+      console.error('Failed to render background audio', error);
+      showAlert('Could not prepare audio', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setRenderProgress(null);
+    }
+  }, [renderProgress, readAloudChunks, backgroundTitle, readAloud.voice, readAloud.rate, audioPlayer]);
+
   const handleCloseReadAloud = useCallback(() => {
     readAloud.stop();
     setReadAloudOpen(false);
   }, [readAloud.stop]);
 
   // Keep the reading position on screen — same idea as the deep-link scroll-to-verse
-  // effect above, but re-triggered every time speech advances to a new verse.
+  // effect above, but re-triggered every time speech (live or backgrounded) advances to
+  // a new verse.
+  const backgroundActiveKey = audioPlayer.nowPlaying?.title === backgroundTitle ? audioPlayer.activeKey : null;
   useEffect(() => {
-    if (!readAloud.activeKey) return;
-    const y = verseLayouts.current.get(Number(readAloud.activeKey));
+    const key = readAloud.activeKey ?? backgroundActiveKey;
+    if (!key) return;
+    const y = verseLayouts.current.get(Number(key));
     if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - theme.spacing.lg * 2), animated: true });
-  }, [readAloud.activeKey, theme.spacing.lg]);
+  }, [readAloud.activeKey, backgroundActiveKey, theme.spacing.lg]);
 
   const swipeGesture = Gesture.Pan()
     .activeOffsetX([-20, 20])
@@ -458,7 +489,9 @@ export default function ChapterReaderScreen() {
               const highlightColor = highlights.get(v.verse);
               const isSelected = selectedVerses.has(v.verse);
               const isFlashing = flashVerse === v.verse;
-              const isSpeaking = readAloud.activeKey === String(v.verse);
+              const isBackgroundReading =
+                audioPlayer.nowPlaying?.title === backgroundTitle && audioPlayer.activeKey === String(v.verse);
+              const isSpeaking = readAloud.activeKey === String(v.verse) || isBackgroundReading;
               return (
                 <View
                   key={v.id}
@@ -613,6 +646,8 @@ export default function ChapterReaderScreen() {
           onSkipForward={() => readAloud.skip(1)}
           onOpenSettings={() => setVoiceSettingsOpen(true)}
           onClose={handleCloseReadAloud}
+          onPlayInBackground={handlePlayInBackground}
+          renderProgress={renderProgress}
         />
       )}
 

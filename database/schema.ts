@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 16;
 
 export const CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS bible (
@@ -64,6 +64,24 @@ CREATE TABLE IF NOT EXISTS hymn_favorites (
   id INTEGER PRIMARY KEY NOT NULL,
   language TEXT NOT NULL,
   number INTEGER NOT NULL,
+  created_date TEXT NOT NULL
+);
+
+-- Generic word-range highlighting shared by every reader that isn't Bible verses or
+-- Sabbath School (each of those already has its own dedicated, differently-keyed table —
+-- see the highlights and sabbath_highlights tables above). content_type/content_key
+-- together identify one page (commentary uses "Genesis|1", beliefs uses the belief
+-- number, sermons use the sermon id); block_index is the paragraph/entry within that
+-- page, and start_word/end_word are word indices within that block's tokenized text,
+-- matching sabbath_highlights' own scheme.
+CREATE TABLE IF NOT EXISTS word_highlights (
+  id INTEGER PRIMARY KEY NOT NULL,
+  content_type TEXT NOT NULL,
+  content_key TEXT NOT NULL,
+  block_index INTEGER NOT NULL,
+  start_word INTEGER NOT NULL,
+  end_word INTEGER NOT NULL,
+  color TEXT NOT NULL,
   created_date TEXT NOT NULL
 );
 
@@ -159,6 +177,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_habits_type_date ON habits (habit_type, da
 CREATE INDEX IF NOT EXISTS idx_bible_lookup ON bible (translation, book, chapter, verse);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bookmarks_verse ON bookmarks (book, chapter, verse);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_hymn_favorites ON hymn_favorites (language, number);
+CREATE INDEX IF NOT EXISTS idx_word_highlights_lookup ON word_highlights (content_type, content_key);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_highlights_verse ON highlights (book, chapter, verse);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_egw_highlights_para ON egw_highlights (book, chapter, paragraph);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_egw_chapters_lookup ON egw_chapters (book_code, chapter_number);

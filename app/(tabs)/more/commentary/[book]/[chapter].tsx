@@ -2,49 +2,29 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { BackHandler, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { getCommentaryChapter } from '@/database/sdaCommentary';
-import { findScriptureRefs } from '@/database/scriptureRefs';
 import { VersePopup, VerseRef } from '@/components/bible/VersePopup';
 import { useReadAloud } from '@/hooks/useReadAloud';
 import { prefetchVoices } from '@/services/speechEngine';
 import { splitForSpeech } from '@/utils/speechText';
+import { HighlightColor } from '@/database/highlights';
+import { addWordHighlight, getWordHighlights, removeWordHighlight, WordHighlight } from '@/database/wordHighlights';
 import { ArrowLeft, Volume2 } from '@/components/ui/Icon';
 import { PageLoader } from '@/components/ui/PageLoader';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { ReadAloudBar } from '@/components/reader/ReadAloudBar';
 import { VoiceSettingsSheet } from '@/components/reader/VoiceSettingsSheet';
-import { Body, Heading, Label } from '@/components/ui/Typography';
-
-// Commentary text is full of scripture cross-references ("Psalm 33:6, 9", "Ephesians
-// 3:15") — make each one tappable, popping up that verse right here instead of
-// navigating away and leaving the commentary.
-function renderEntryText(text: string, linkColor: string, onPressRef: (ref: VerseRef) => void) {
-  const refs = findScriptureRefs(text);
-  if (refs.length === 0) return text;
-  const nodes: React.ReactNode[] = [];
-  let cursor = 0;
-  refs.forEach((ref, i) => {
-    if (ref.start > cursor) nodes.push(text.slice(cursor, ref.start));
-    nodes.push(
-      <Body
-        key={i}
-        style={{ color: linkColor, textDecorationLine: 'underline' }}
-        onPress={() => onPressRef({ book: ref.book, chapter: ref.chapter, verse: ref.verse, verseEnd: ref.verseEnd })}
-      >
-        {ref.text}
-      </Body>
-    );
-    cursor = ref.end;
-  });
-  if (cursor < text.length) nodes.push(text.slice(cursor));
-  return nodes;
-}
+import { HighlightableText } from '@/components/reader/HighlightableText';
+import { HighlightActionBar } from '@/components/reader/HighlightActionBar';
+import { Heading, Label } from '@/components/ui/Typography';
 
 export default function CommentaryEntriesScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
+  const db = useSQLiteContext();
   const { book: rawBook, chapter: rawChapter, fromVerse } = useLocalSearchParams<{
     book: string;
     chapter: string;
@@ -54,6 +34,49 @@ export default function CommentaryEntriesScreen() {
   const chapterNumber = Number(rawChapter);
   const chapter = useMemo(() => getCommentaryChapter(book, chapterNumber), [book, chapterNumber]);
   const [popupRef, setPopupRef] = useState<VerseRef>(null);
+
+  const contentKey = `${book}|${chapterNumber}`;
+  const [highlights, setHighlights] = useState<Map<number, WordHighlight[]>>(new Map());
+  const [pending, setPending] = useState<{ block: number; start: number; end: number } | null>(null);
+
+  useEffect(() => {
+    setPending(null);
+    getWordHighlights(db, 'commentary', contentKey).then(setHighlights);
+  }, [db, contentKey]);
+
+  const handleSelectionEnd = useCallback((block: number, start: number, end: number) => {
+    setPending({ block, start, end });
+  }, []);
+
+  const overlapping = pending
+    ? (highlights.get(pending.block) ?? []).filter((h) => h.startWord <= pending.end && h.endWord >= pending.start)
+    : [];
+
+  const applyColor = useCallback(
+    async (color: HighlightColor) => {
+      if (!pending) return;
+      const id = await addWordHighlight(db, 'commentary', contentKey, pending.block, pending.start, pending.end, color);
+      setHighlights((prev) => {
+        const next = new Map(prev);
+        next.set(pending.block, [...(next.get(pending.block) ?? []), { id, blockIndex: pending.block, startWord: pending.start, endWord: pending.end, color }]);
+        return next;
+      });
+      setPending(null);
+    },
+    [db, contentKey, pending]
+  );
+
+  const applyRemove = useCallback(async () => {
+    if (!pending) return;
+    await Promise.all(overlapping.map((h) => removeWordHighlight(db, h.id)));
+    setHighlights((prev) => {
+      const next = new Map(prev);
+      const ids = new Set(overlapping.map((h) => h.id));
+      next.set(pending.block, (next.get(pending.block) ?? []).filter((h) => !ids.has(h.id)));
+      return next;
+    });
+    setPending(null);
+  }, [db, pending, overlapping]);
 
   const [readAloudOpen, setReadAloudOpen] = useState(false);
   const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
@@ -193,32 +216,47 @@ export default function CommentaryEntriesScreen() {
               <Label style={{ marginBottom: 2 }}>
                 {entry.verseStart === entry.verseEnd ? `Verse ${entry.verseStart}` : `Verses ${entry.verseStart}-${entry.verseEnd}`}
               </Label>
-              <Body
-                selectable
-                style={{
+              <HighlightableText
+                text={entry.content}
+                blockIndex={i}
+                highlights={highlights.get(i) ?? []}
+                pendingRange={pending?.block === i ? { start: pending.start, end: pending.end } : null}
+                pendingColor={theme.colors.primarySoft}
+                linkColor={theme.colors.primary}
+                textStyle={{
                   fontFamily: theme.fontFamily.serifRegular,
                   fontSize: theme.fontSize.md,
                   lineHeight: theme.lineHeight.lg,
-                  textAlign: 'justify',
+                  color: theme.colors.text,
                 }}
-              >
-                {renderEntryText(entry.content, theme.colors.primary, setPopupRef)}
-              </Body>
+                onPressRef={setPopupRef}
+                onSelectionEnd={handleSelectionEnd}
+              />
             </View>
           );
         })}
       </ScrollView>
 
-      {readAloudOpen && (
-        <ReadAloudBar
-          state={readAloud.state}
-          label={readAloud.activeKey ? `Reading entry ${Number(readAloud.activeKey) + 1}` : `Read chapter ${chapter.number} aloud`}
-          onPlayPause={handleReadAloudPlayPause}
-          onSkipBack={() => readAloud.skip(-1)}
-          onSkipForward={() => readAloud.skip(1)}
-          onOpenSettings={() => setVoiceSettingsOpen(true)}
-          onClose={handleCloseReadAloud}
+      {pending ? (
+        <HighlightActionBar
+          wordCount={pending.end - pending.start + 1}
+          hasExistingHighlight={overlapping.length > 0}
+          onPickColor={applyColor}
+          onRemove={applyRemove}
+          onCancel={() => setPending(null)}
         />
+      ) : (
+        readAloudOpen && (
+          <ReadAloudBar
+            state={readAloud.state}
+            label={readAloud.activeKey ? `Reading entry ${Number(readAloud.activeKey) + 1}` : `Read chapter ${chapter.number} aloud`}
+            onPlayPause={handleReadAloudPlayPause}
+            onSkipBack={() => readAloud.skip(-1)}
+            onSkipForward={() => readAloud.skip(1)}
+            onOpenSettings={() => setVoiceSettingsOpen(true)}
+            onClose={handleCloseReadAloud}
+          />
+        )
       )}
 
       <VersePopup reference={popupRef} onClose={() => setPopupRef(null)} />

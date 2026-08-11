@@ -60,25 +60,31 @@ export default function ReadingPlansScreen() {
         <PressableScale
           onPress={() => router.push({ pathname: '/more/reading-plans/[planId]', params: { planId: plan.id } })}
           scaleTo={0.99}
-          style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+          style={{ flex: 1 }}
         >
-          <View
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: theme.radius.sm,
-              backgroundColor: theme.colors.primarySoft,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <BookOpen size={18} color={theme.colors.primary} strokeWidth={1.75} />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: theme.radius.sm,
+                backgroundColor: theme.colors.primarySoft,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <BookOpen size={18} color={theme.colors.primary} strokeWidth={1.75} />
+            </View>
+            <View style={{ flex: 1, marginLeft: theme.spacing.md, marginRight: theme.spacing.sm }}>
+              <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }} numberOfLines={1}>
+                {plan.title}
+              </Body>
+              <Label style={{ marginTop: 2 }} numberOfLines={2}>
+                {plan.description}
+              </Label>
+            </View>
+            <ChevronRight size={18} color={theme.colors.textFaint} />
           </View>
-          <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
-            <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{plan.title}</Body>
-            <Label style={{ marginTop: 2 }}>{plan.description}</Label>
-          </View>
-          <ChevronRight size={18} color={theme.colors.textFaint} />
         </PressableScale>
         <PressableScale onPress={() => selectAsVerseSource(plan.id)} scaleTo={0.85} style={{ paddingLeft: theme.spacing.sm }}>
           {renderRadio(selected)}

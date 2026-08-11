@@ -32,6 +32,7 @@ import {
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { DATABASE_NAME, migrateDbIfNeeded } from '@/database/migrate';
 import { TabBarVisibilityProvider } from '@/hooks/useTabBarVisibility';
+import { AudioPlayerProvider } from '@/contexts/AudioPlayerProvider';
 import { syncSabbathSchool } from '@/services/sabbathSchoolSync';
 import { refreshSabbathSchoolReminder } from '@/services/notifications';
 import { AppAlertHost } from '@/components/ui/AppAlert';
@@ -102,9 +103,11 @@ export default function RootLayout() {
             onError={(error) => console.error('Database init failed', error)}
           >
             <ThemeProvider>
-              <TabBarVisibilityProvider>
-                <RootReady onReady={() => setDbReady(true)} />
-              </TabBarVisibilityProvider>
+              <AudioPlayerProvider>
+                <TabBarVisibilityProvider>
+                  <RootReady onReady={() => setDbReady(true)} />
+                </TabBarVisibilityProvider>
+              </AudioPlayerProvider>
             </ThemeProvider>
           </SQLiteProvider>
         )}

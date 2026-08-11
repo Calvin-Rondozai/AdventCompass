@@ -3,12 +3,13 @@ import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { ChevronLeft, ChevronRight, NotebookPen, Palette, Volume2, X } from '@/components/ui/Icon';
+import { ChevronLeft, ChevronRight, Highlighter, NotebookPen, Palette, Volume2, X } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { EgwBook, getEgwBook } from '@/database/egwBooks';
 import { getEgwHighlightsForChapter, toggleEgwHighlightColor } from '@/database/egwHighlights';
 import { HIGHLIGHT_COLORS, HIGHLIGHT_HEX, HighlightColor } from '@/database/highlights';
+import { addWordHighlight, getWordHighlights, removeWordHighlight, WordHighlight } from '@/database/wordHighlights';
 import { useReadAloud } from '@/hooks/useReadAloud';
 import { prefetchVoices } from '@/services/speechEngine';
 import { splitForSpeech, speechTextForEgwParagraph } from '@/utils/speechText';
@@ -16,6 +17,8 @@ import { PageLoader } from '@/components/ui/PageLoader';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { ReadAloudBar } from '@/components/reader/ReadAloudBar';
 import { VoiceSettingsSheet } from '@/components/reader/VoiceSettingsSheet';
+import { HighlightableText } from '@/components/reader/HighlightableText';
+import { HighlightActionBar } from '@/components/reader/HighlightActionBar';
 import { Body, Heading, Label } from '@/components/ui/Typography';
 
 // Page markers like "[123]" are kept in the scraped text so the reader can show the
@@ -98,6 +101,76 @@ export default function EgwChapterReaderScreen() {
   const [showColorRow, setShowColorRow] = useState(false);
   const isSelecting = selected.size > 0;
 
+  // Word-level highlighting is a separate mode from the paragraph multi-select above
+  // (which doubles as "link these paragraphs to a note") rather than layered on top of
+  // it — the two interactions would otherwise fight over the same taps/long-presses on
+  // the same paragraph text. Toggled explicitly from the header so only one is ever
+  // mounted at a time.
+  const [wordHighlightMode, setWordHighlightMode] = useState(false);
+  const wordContentKey = `${code}|${chapterNumber}`;
+  const [wordHighlights, setWordHighlights] = useState<Map<number, WordHighlight[]>>(new Map());
+  const [pendingWordRange, setPendingWordRange] = useState<{ block: number; start: number; end: number } | null>(null);
+
+  useEffect(() => {
+    if (!code) return;
+    setPendingWordRange(null);
+    getWordHighlights(db, 'egw', wordContentKey).then(setWordHighlights);
+  }, [db, code, wordContentKey]);
+
+  const handleWordSelectionEnd = useCallback((block: number, start: number, end: number) => {
+    setPendingWordRange({ block, start, end });
+  }, []);
+
+  const overlappingWordHighlights = pendingWordRange
+    ? (wordHighlights.get(pendingWordRange.block) ?? []).filter(
+        (h) => h.startWord <= pendingWordRange.end && h.endWord >= pendingWordRange.start
+      )
+    : [];
+
+  const applyWordColor = useCallback(
+    async (color: HighlightColor) => {
+      if (!pendingWordRange) return;
+      const id = await addWordHighlight(
+        db,
+        'egw',
+        wordContentKey,
+        pendingWordRange.block,
+        pendingWordRange.start,
+        pendingWordRange.end,
+        color
+      );
+      setWordHighlights((prev) => {
+        const next = new Map(prev);
+        next.set(pendingWordRange.block, [
+          ...(next.get(pendingWordRange.block) ?? []),
+          { id, blockIndex: pendingWordRange.block, startWord: pendingWordRange.start, endWord: pendingWordRange.end, color },
+        ]);
+        return next;
+      });
+      setPendingWordRange(null);
+    },
+    [db, wordContentKey, pendingWordRange]
+  );
+
+  const removeWordHighlightRange = useCallback(async () => {
+    if (!pendingWordRange) return;
+    await Promise.all(overlappingWordHighlights.map((h) => removeWordHighlight(db, h.id)));
+    setWordHighlights((prev) => {
+      const next = new Map(prev);
+      const ids = new Set(overlappingWordHighlights.map((h) => h.id));
+      next.set(pendingWordRange.block, (next.get(pendingWordRange.block) ?? []).filter((h) => !ids.has(h.id)));
+      return next;
+    });
+    setPendingWordRange(null);
+  }, [db, pendingWordRange, overlappingWordHighlights]);
+
+  const toggleWordHighlightMode = useCallback(() => {
+    setWordHighlightMode((v) => !v);
+    setSelected(new Set());
+    setShowColorRow(false);
+    setPendingWordRange(null);
+  }, []);
+
   const [readAloudOpen, setReadAloudOpen] = useState(false);
   const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
   const readAloud = useReadAloud();
@@ -164,12 +237,17 @@ export default function EgwChapterReaderScreen() {
     navigation.setOptions({
       title: book?.title ?? '',
       headerRight: () => (
-        <PressableScale onPress={toggleReadAloudOpen} style={{ padding: theme.spacing.xs }}>
-          <Volume2 size={18} color={readAloudOpen ? theme.colors.primary : theme.colors.text} />
-        </PressableScale>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <PressableScale onPress={toggleWordHighlightMode} style={{ padding: theme.spacing.xs }}>
+            <Highlighter size={18} color={wordHighlightMode ? theme.colors.primary : theme.colors.text} />
+          </PressableScale>
+          <PressableScale onPress={toggleReadAloudOpen} style={{ padding: theme.spacing.xs }}>
+            <Volume2 size={18} color={readAloudOpen ? theme.colors.primary : theme.colors.text} />
+          </PressableScale>
+        </View>
       ),
     });
-  }, [navigation, book, theme, readAloudOpen, toggleReadAloudOpen]);
+  }, [navigation, book, theme, readAloudOpen, toggleReadAloudOpen, wordHighlightMode, toggleWordHighlightMode]);
 
   const toggleSelected = useCallback((i: number) => {
     setSelected((prev) => {
@@ -261,6 +339,41 @@ export default function EgwChapterReaderScreen() {
           // Textbook--...") already reads as its own block via renderParagraph's bold lead,
           // so it stays flush like the opening paragraph does.
           const showIndent = i > 0 && !SUBTITLE_RE.test(para);
+
+          if (wordHighlightMode) {
+            return (
+              <View
+                key={i}
+                onLayout={(e) => paragraphLayouts.current.set(i, e.nativeEvent.layout.y)}
+                style={{
+                  backgroundColor: isSpeaking ? theme.colors.primarySoft : 'transparent',
+                  borderRadius: theme.radius.sm,
+                  borderWidth: isSpeaking ? 1 : 0,
+                  borderColor: theme.colors.primary,
+                  padding: isSpeaking ? theme.spacing.xs : 0,
+                  marginBottom: theme.spacing.xs,
+                }}
+              >
+                <HighlightableText
+                  text={para}
+                  blockIndex={i}
+                  highlights={wordHighlights.get(i) ?? []}
+                  pendingRange={pendingWordRange?.block === i ? { start: pendingWordRange.start, end: pendingWordRange.end } : null}
+                  pendingColor={theme.colors.primarySoft}
+                  linkColor={theme.colors.primary}
+                  textStyle={{
+                    fontFamily: theme.fontFamily.serifRegular,
+                    fontSize: theme.fontSize.md,
+                    lineHeight: theme.lineHeight.lg,
+                    color: theme.colors.text,
+                  }}
+                  onPressRef={() => {}}
+                  onSelectionEnd={handleWordSelectionEnd}
+                />
+              </View>
+            );
+          }
+
           return (
             <View key={i} onLayout={(e) => paragraphLayouts.current.set(i, e.nativeEvent.layout.y)}>
               <PressableScale
@@ -295,7 +408,15 @@ export default function EgwChapterReaderScreen() {
         })}
       </ScrollView>
 
-      {isSelecting && (
+      {wordHighlightMode && pendingWordRange ? (
+        <HighlightActionBar
+          wordCount={pendingWordRange.end - pendingWordRange.start + 1}
+          hasExistingHighlight={overlappingWordHighlights.length > 0}
+          onPickColor={applyWordColor}
+          onRemove={removeWordHighlightRange}
+          onCancel={() => setPendingWordRange(null)}
+        />
+      ) : isSelecting && (
         <View
           style={{
             borderTopWidth: 1,
@@ -330,7 +451,7 @@ export default function EgwChapterReaderScreen() {
         </View>
       )}
 
-      {!isSelecting && readAloudOpen && (
+      {!wordHighlightMode && !isSelecting && readAloudOpen && (
         <ReadAloudBar
           state={readAloud.state}
           label={
@@ -344,7 +465,7 @@ export default function EgwChapterReaderScreen() {
         />
       )}
 
-      {!isSelecting && !readAloudOpen && (
+      {!wordHighlightMode && !isSelecting && !readAloudOpen && (
         <View
           style={{
             flexDirection: 'row',
