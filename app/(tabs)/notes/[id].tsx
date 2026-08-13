@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
+import { Keyboard, Modal, Platform, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -72,6 +72,22 @@ export default function NoteEditorScreen() {
   const [reminderMinute, setReminderMinute] = useState(0);
   const [menuVisible, setMenuVisible] = useState(false);
   const linkedVerse = existing?.linked_verse ?? params.linkedVerse ?? null;
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // KeyboardAvoidingView's automatic behavior is unreliable on Android inside a
+  // navigator screen (same reasoning as the AI Assistant screen) — measuring the
+  // keyboard directly and padding the scroll content by that height keeps whatever's
+  // being typed (the title, the checklist, the body) from sitting underneath it.
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, (e) => setKeyboardHeight(e.endCoordinates.height));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (isNew) return;
@@ -272,7 +288,10 @@ export default function NoteEditorScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={[]}>
-      <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.md }}>
+      <ScrollView
+        contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.lg + keyboardHeight, gap: theme.spacing.md }}
+        keyboardShouldPersistTaps="handled"
+      >
         {!!linkedVerse && (
           <View
             style={{

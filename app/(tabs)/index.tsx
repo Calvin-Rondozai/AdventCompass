@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { MotiView } from 'moti';
 import {
@@ -69,9 +69,14 @@ export default function HomeDashboard() {
   const greeting = useSabbathGreeting();
   const weekDays = habits.week.bible_study.length === 7 ? habits.week.bible_study : [];
 
-  useEffect(() => {
-    getTodaysLesson(db).then(setTodaysLesson);
-  }, [db]);
+  // useFocusEffect (not a plain effect) so downloading a new quarterly from the Sabbath
+  // School screen and returning to Home picks up today's lesson immediately, instead of
+  // only on the next cold app start.
+  useFocusEffect(
+    useCallback(() => {
+      getTodaysLesson(db).then(setTodaysLesson);
+    }, [db])
+  );
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['top']}>
@@ -115,7 +120,7 @@ export default function HomeDashboard() {
                 {formatLongDate()}
               </Body>
             </View>
-            <DashboardHeroArt night={getTimeOfDay() === 'night'} size={104} />
+            <DashboardHeroArt night={getTimeOfDay() === 'night' || getTimeOfDay() === 'evening'} size={104} />
           </MotiView>
         </View>
 

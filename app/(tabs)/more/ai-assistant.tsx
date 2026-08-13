@@ -41,6 +41,39 @@ const GREETING: ChatMessage = {
   text: "Hi! Ask me about a verse, a topic, or what the Bible or Ellen White's writings say. I'll always say exactly where an answer came from.",
 };
 
+// Reveals `target` a few characters at a time on a steady clock, rather than snapping to
+// whatever arrived — both the offline (llama.rn) and online (Groq SSE) paths already
+// deliver text incrementally via onToken, but on some Android network stacks XHR's
+// onprogress can coalesce a streamed response into just one or two large chunks instead
+// of many small ones, which reads as "nothing, then the whole answer" rather than a
+// genuine typing effect. This guarantees the visible reveal is steady either way. If
+// `target` ever shrinks (a new section just started and reset streamingText to ''), the
+// display snaps down to match rather than getting stuck showing the previous section's
+// leftover tail.
+function useTypewriter(target: string, active: boolean): string {
+  const [shown, setShown] = useState('');
+  const targetRef = useRef(target);
+  targetRef.current = target;
+
+  useEffect(() => {
+    if (!active) {
+      setShown('');
+      return;
+    }
+    const id = setInterval(() => {
+      setShown((prev) => {
+        const latest = targetRef.current;
+        if (latest.length < prev.length) return latest;
+        if (prev.length >= latest.length) return prev;
+        return latest.slice(0, prev.length + 3);
+      });
+    }, 16);
+    return () => clearInterval(id);
+  }, [active]);
+
+  return shown;
+}
+
 function formatBytes(bytes: number): string {
   if (!bytes) return '0 MB';
   return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
@@ -174,12 +207,12 @@ function AssistantBubble({ text }: { text: string }) {
           width: 24,
           height: 24,
           borderRadius: theme.radius.pill,
-          backgroundColor: theme.colors.accentSoft,
+          backgroundColor: theme.colors.primarySoft,
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <Sparkles size={12} color={theme.colors.accent} strokeWidth={2} />
+        <Sparkles size={12} color={theme.colors.primary} strokeWidth={2} />
       </View>
       <View
         style={{
@@ -253,6 +286,7 @@ export default function AIAssistantScreen() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const listRef = useRef<FlatList>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const typedStreamingText = useTypewriter(streamingText, sending);
 
   // Restores the previous chat transcript instead of always starting fresh with just
   // the greeting — deliberately does NOT call resetConversation() here (unlike the
@@ -577,7 +611,7 @@ export default function AIAssistantScreen() {
           keyExtractor={(m) => m.id}
           contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.sm }}
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-          ListFooterComponent={sending ? streamingText ? <AssistantBubble text={streamingText} /> : <ThinkingBubble /> : null}
+          ListFooterComponent={sending ? typedStreamingText ? <AssistantBubble text={typedStreamingText} /> : <ThinkingBubble /> : null}
           ListFooterComponentStyle={{ marginTop: theme.spacing.sm }}
           renderItem={({ item }) => (
             <View style={{ alignSelf: item.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
@@ -594,12 +628,12 @@ export default function AIAssistantScreen() {
                       width: 24,
                       height: 24,
                       borderRadius: theme.radius.pill,
-                      backgroundColor: theme.colors.accentSoft,
+                      backgroundColor: theme.colors.primarySoft,
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
                   >
-                    <Sparkles size={12} color={theme.colors.accent} strokeWidth={2} />
+                    <Sparkles size={12} color={theme.colors.primary} strokeWidth={2} />
                   </View>
                 )}
                 <View
