@@ -42,6 +42,15 @@ async function ensureNotesReminderColumns(db: SQLiteDatabase): Promise<void> {
   if (!names.has('checklist')) {
     await db.execAsync('ALTER TABLE notes ADD COLUMN checklist TEXT');
   }
+  if (!names.has('color')) {
+    await db.execAsync('ALTER TABLE notes ADD COLUMN color TEXT');
+  }
+  if (!names.has('image_uri')) {
+    await db.execAsync('ALTER TABLE notes ADD COLUMN image_uri TEXT');
+  }
+  if (!names.has('blocks')) {
+    await db.execAsync('ALTER TABLE notes ADD COLUMN blocks TEXT');
+  }
 }
 
 // sabbath_highlights gained start_word/end_word (schema v13) so a highlight can cover

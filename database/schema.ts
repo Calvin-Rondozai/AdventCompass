@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 18;
 
 export const CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS bible (
@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS notes (
   reminder_time TEXT,
   reminder_enabled INTEGER NOT NULL DEFAULT 0,
   checklist TEXT,
+  color TEXT,
+  image_uri TEXT,
+  blocks TEXT,
   created_date TEXT NOT NULL
 );
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, SectionList, ScrollView, TextInput, View } from 'react-native';
+import { Image, Modal, Pressable, SectionList, ScrollView, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
 import { router, useFocusEffect, useNavigation } from 'expo-router';
@@ -18,6 +18,7 @@ import {
   toggleNoteArchived,
   toggleNotePinned,
 } from '@/database/notes';
+import { HIGHLIGHT_HEX } from '@/database/highlights';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body, Heading, Label } from '@/components/ui/Typography';
 
@@ -127,6 +128,7 @@ export default function NotesListScreen() {
 
   const renderCard = (item: Note, style?: object) => {
     const items = parseChecklist(item.checklist);
+    const cardBg = item.color ? HIGHLIGHT_HEX[theme.scheme][item.color] : theme.colors.surface;
     const card = (
       <PressableScale
         onPress={() => router.push({ pathname: '/notes/[id]', params: { id: String(item.id) } })}
@@ -136,13 +138,17 @@ export default function NotesListScreen() {
       >
         <View
           style={{
-            backgroundColor: theme.colors.surface,
+            backgroundColor: cardBg,
             borderRadius: theme.radius.md,
-            borderWidth: 1,
+            borderWidth: item.color ? 0 : 1,
             borderColor: theme.colors.border,
-            padding: theme.spacing.md,
+            overflow: 'hidden',
           }}
         >
+          {!!item.image_uri && (
+            <Image source={{ uri: item.image_uri }} style={{ width: '100%', height: 100 }} resizeMode="cover" />
+          )}
+          <View style={{ padding: theme.spacing.md }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
             {!!item.pinned && <Pin size={12} color={theme.colors.accent} fill={theme.colors.accent} style={{ marginRight: 6 }} />}
             <Body style={{ flex: 1, fontFamily: theme.fontFamily.sansSemiBold }} numberOfLines={1}>
@@ -167,6 +173,7 @@ export default function NotesListScreen() {
                 · {item.linked_verse}
               </Label>
             )}
+          </View>
           </View>
         </View>
       </PressableScale>

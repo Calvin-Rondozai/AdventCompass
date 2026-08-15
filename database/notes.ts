@@ -1,6 +1,12 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
+import type { HighlightColor } from './highlights';
+import { newLocalId } from '@/utils/localId';
 
 export type NoteCategory = 'bible_study' | 'prayer' | 'devotional' | 'sermon' | 'reflection' | 'personal';
+
+// Reuses the same yellow/green/blue/pink palette as verse/paragraph highlighting
+// elsewhere in the app, rather than inventing a separate note-color set.
+export const NOTE_COLORS: HighlightColor[] = ['yellow', 'green', 'blue', 'pink'];
 
 export const NOTE_CATEGORIES: { key: NoteCategory; label: string }[] = [
   { key: 'bible_study', label: 'Bible Study' },
@@ -22,6 +28,9 @@ export type Note = {
   reminder_time: string | null;
   reminder_enabled: number;
   checklist: string | null;
+  color: HighlightColor | null;
+  image_uri: string | null;
+  blocks: string | null;
   created_date: string;
 };
 
@@ -40,12 +49,70 @@ export function stringifyChecklist(items: ChecklistItem[]): string | null {
   return items.length ? JSON.stringify(items) : null;
 }
 
+// The editor's actual content model: an ordered list of blocks, so a note can hold any
+// number of checklists and photos, each insertable wherever the cursor was and
+// repositionable by dragging — not just one of each in a fixed spot.
+export type NoteBlock =
+  | { id: string; type: 'text'; text: string }
+  | { id: string; type: 'checklist'; items: ChecklistItem[] }
+  | { id: string; type: 'image'; uri: string };
+
+export function parseBlocks(json: string | null): NoteBlock[] | null {
+  if (!json) return null;
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function stringifyBlocks(blocks: NoteBlock[]): string {
+  return JSON.stringify(blocks);
+}
+
+// `blocks` is the source of truth the editor reads/writes, but several other consumers
+// (full-text search, the dashboard's checklist widget, the notes list card's preview
+// text/thumbnail) only ever knew about the older flat content/checklist/image_uri
+// columns — rather than teach every one of them to understand blocks, this derives
+// those columns from `blocks` on every save so they stay correct as simple projections.
+export function deriveFromBlocks(blocks: NoteBlock[]): {
+  content: string;
+  checklist: ChecklistItem[];
+  image_uri: string | null;
+} {
+  const content = blocks
+    .filter((b): b is Extract<NoteBlock, { type: 'text' }> => b.type === 'text')
+    .map((b) => b.text)
+    .filter((t) => t.trim().length > 0)
+    .join('\n\n');
+  const checklist = blocks
+    .filter((b): b is Extract<NoteBlock, { type: 'checklist' }> => b.type === 'checklist')
+    .flatMap((b) => b.items);
+  const image = blocks.find((b): b is Extract<NoteBlock, { type: 'image' }> => b.type === 'image');
+  return { content, checklist, image_uri: image?.uri ?? null };
+}
+
+// A note saved before `blocks` existed (or one where it failed to parse) — rebuilt as a
+// text block, then a checklist block, then an image block, matching the old fixed
+// layout, so opening it in the new editor doesn't lose anything.
+export function blocksFromLegacyNote(note: Note): NoteBlock[] {
+  const blocks: NoteBlock[] = [];
+  if (note.content.trim()) blocks.push({ id: newLocalId(), type: 'text', text: note.content });
+  const items = parseChecklist(note.checklist);
+  if (items.length) blocks.push({ id: newLocalId(), type: 'checklist', items });
+  if (note.image_uri) blocks.push({ id: newLocalId(), type: 'image', uri: note.image_uri });
+  if (blocks.length === 0) blocks.push({ id: newLocalId(), type: 'text', text: '' });
+  return blocks;
+}
+
 // A checklist normally renders above the note body. This marker (Unicode Private Use Area
 // codepoints, never produced by typing) can be embedded as its own paragraph inside
 // `content` to say "the checklist goes here instead". Absent from every note written
 // before repositioning existed, so old notes keep rendering the checklist above the body
-// exactly as before.
-export const CHECKLIST_MARKER = '';
+// exactly as before. Superseded by `blocks` for editing, but still understood here so
+// `blocksFromLegacyNote`'s text block doesn't show the raw marker character.
+export const CHECKLIST_MARKER = '';
 
 export function splitContentAtChecklist(content: string): { before: string; after: string } {
   const idx = content.indexOf(CHECKLIST_MARKER);
@@ -54,10 +121,6 @@ export function splitContentAtChecklist(content: string): { before: string; afte
     before: content.slice(0, idx).replace(/\n+$/, ''),
     after: content.slice(idx + CHECKLIST_MARKER.length).replace(/^\n+/, ''),
   };
-}
-
-export function joinContentAroundChecklist(before: string, after: string): string {
-  return [before, CHECKLIST_MARKER, after].filter((s) => s.trim().length > 0).join('\n\n');
 }
 
 export function formatVerseRef(book: string, chapter: number, verse: number): string {
@@ -100,15 +163,25 @@ export async function getNote(db: SQLiteDatabase, id: number): Promise<Note | nu
 
 export async function createNote(
   db: SQLiteDatabase,
-  input: { title: string; content: string; category: NoteCategory; linked_verse?: string | null; checklist?: ChecklistItem[] }
+  input: {
+    title: string;
+    category: NoteCategory;
+    blocks: NoteBlock[];
+    linked_verse?: string | null;
+    color?: HighlightColor | null;
+  }
 ): Promise<number> {
+  const { content, checklist, image_uri } = deriveFromBlocks(input.blocks);
   const result = await db.runAsync(
-    'INSERT INTO notes (title, content, category, linked_verse, pinned, archived, checklist, created_date) VALUES (?, ?, ?, ?, 0, 0, ?, ?)',
+    'INSERT INTO notes (title, content, category, linked_verse, pinned, archived, checklist, color, image_uri, blocks, created_date) VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?)',
     input.title,
-    input.content,
+    content,
     input.category,
     input.linked_verse ?? null,
-    stringifyChecklist(input.checklist ?? []),
+    stringifyChecklist(checklist),
+    input.color ?? null,
+    image_uri,
+    stringifyBlocks(input.blocks),
     new Date().toISOString()
   );
   return result.lastInsertRowId;
@@ -117,14 +190,23 @@ export async function createNote(
 export async function updateNote(
   db: SQLiteDatabase,
   id: number,
-  input: { title: string; content: string; category: NoteCategory; checklist?: ChecklistItem[] }
+  input: {
+    title: string;
+    category: NoteCategory;
+    blocks: NoteBlock[];
+    color?: HighlightColor | null;
+  }
 ): Promise<void> {
+  const { content, checklist, image_uri } = deriveFromBlocks(input.blocks);
   await db.runAsync(
-    'UPDATE notes SET title = ?, content = ?, category = ?, checklist = ? WHERE id = ?',
+    'UPDATE notes SET title = ?, content = ?, category = ?, checklist = ?, color = ?, image_uri = ?, blocks = ? WHERE id = ?',
     input.title,
-    input.content,
+    content,
     input.category,
-    stringifyChecklist(input.checklist ?? []),
+    stringifyChecklist(checklist),
+    input.color ?? null,
+    image_uri,
+    stringifyBlocks(input.blocks),
     id
   );
 }
@@ -197,9 +279,23 @@ export async function getPendingChecklistItems(db: SQLiteDatabase, limit = 5): P
   return out;
 }
 
+// Toggles one item wherever it lives — a note can now have several checklist blocks, so
+// this has to search across all of them, not just one flat list. Updates `blocks` itself
+// (not just the derived `checklist` column) so the editor sees the same state next time
+// the note is opened, regardless of whether the toggle came from here (the dashboard
+// widget) or from inside the editor.
 export async function toggleChecklistItem(db: SQLiteDatabase, noteId: number, itemId: string): Promise<void> {
   const note = await getNote(db, noteId);
   if (!note) return;
-  const items = parseChecklist(note.checklist).map((it) => (it.id === itemId ? { ...it, done: !it.done } : it));
-  await db.runAsync('UPDATE notes SET checklist = ? WHERE id = ?', stringifyChecklist(items), noteId);
+  const blocks = parseBlocks(note.blocks) ?? blocksFromLegacyNote(note);
+  const nextBlocks = blocks.map((b) =>
+    b.type === 'checklist' ? { ...b, items: b.items.map((it) => (it.id === itemId ? { ...it, done: !it.done } : it)) } : b
+  );
+  const { checklist } = deriveFromBlocks(nextBlocks);
+  await db.runAsync(
+    'UPDATE notes SET checklist = ?, blocks = ? WHERE id = ?',
+    stringifyChecklist(checklist),
+    stringifyBlocks(nextBlocks),
+    noteId
+  );
 }
