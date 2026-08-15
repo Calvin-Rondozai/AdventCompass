@@ -702,16 +702,8 @@ export default function ChapterReaderScreen() {
                   }}
                   scaleTo={0.98}
                 >
-                  <View
-                    style={{
-                      backgroundColor: theme.colors.surface,
-                      borderRadius: theme.radius.md,
-                      borderWidth: 1,
-                      borderColor: theme.colors.border,
-                      padding: theme.spacing.sm + 2,
-                    }}
-                  >
-                    <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>
+                  <View style={{ paddingVertical: theme.spacing.sm }}>
+                    <Body style={{ fontFamily: theme.fontFamily.sansSemiBold, color: theme.colors.primary, textDecorationLine: 'none' }}>
                       {getLocalizedBookName(translation, ref.book)} {ref.chapter}:{ref.verse}
                     </Body>
                   </View>

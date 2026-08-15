@@ -34,7 +34,7 @@ import { DATABASE_NAME, migrateDbIfNeeded } from '@/database/migrate';
 import { TabBarVisibilityProvider } from '@/hooks/useTabBarVisibility';
 import { AudioPlayerProvider } from '@/contexts/AudioPlayerProvider';
 import { syncSabbathSchool } from '@/services/sabbathSchoolSync';
-import { refreshSabbathSchoolReminder } from '@/services/notifications';
+import { ensureNotificationSetup, refreshSabbathSchoolReminder, scheduleSpecialDayNotifications } from '@/services/notifications';
 import { AppAlertHost } from '@/components/ui/AppAlert';
 import { BrandedSplash } from '@/components/BrandedSplash';
 // Registers the foreground notification handler on every launch — reminders are
@@ -222,6 +222,15 @@ function RootReady({ onReady }: { onReady: () => void }) {
       if (state === 'active') trySync();
     });
     return () => sub.remove();
+  }, [db]);
+
+  // Idempotent per calendar year (see scheduleSpecialDayNotifications) — safe to run on
+  // every cold launch. Requests notification permission if it hasn't been granted yet,
+  // same as the reminders feature already does from its own screens.
+  useEffect(() => {
+    ensureNotificationSetup(db)
+      .then(() => scheduleSpecialDayNotifications(db))
+      .catch(() => {});
   }, [db]);
 
   return (

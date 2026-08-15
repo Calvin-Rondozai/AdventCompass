@@ -28,10 +28,13 @@ export default function HymnalListScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      getFavoriteHymnNumbers(db, lang).then(setFavorites);
-    }, [db, lang])
+      getFavoriteHymnNumbers(db).then(setFavorites);
+    }, [db])
   );
 
+  // Favorite-ness is global by hymn number, shared across every language, but favoriting
+  // from here remembers THIS language as the one it was marked in — see
+  // database/hymnFavorites.ts and the dedicated cross-language Favorites screen.
   const handleToggleFavorite = (number: number) => {
     toggleHymnFavorite(db, lang, number).then((isFavorite) => {
       setFavorites((prev) => {

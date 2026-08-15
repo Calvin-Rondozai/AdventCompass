@@ -6,7 +6,7 @@ import { Check } from '@/components/ui/Icon';
 import { useTheme } from '@/theme/ThemeProvider';
 import { BIBLE_TRANSLATIONS } from '@/database/translations';
 import { PressableScale } from '@/components/ui/PressableScale';
-import { Body, Heading, Label } from '@/components/ui/Typography';
+import { Body, Heading } from '@/components/ui/Typography';
 
 type Props = {
   visible: boolean;
@@ -65,23 +65,21 @@ export function TranslationSheet({ visible, selected, onSelect, onClose }: Props
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
-                    backgroundColor: theme.colors.surface,
-                    borderRadius: theme.radius.md,
-                    borderWidth: 1,
-                    borderColor: isSelected ? theme.colors.primary : theme.colors.border,
-                    padding: theme.spacing.md,
-                    marginBottom: theme.spacing.sm,
+                    paddingVertical: theme.spacing.sm + 2,
+                    gap: theme.spacing.xs,
                   }}
                 >
-                  <View style={{ flex: 1 }}>
-                    <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>
-                      {item.code}: {item.name}
-                    </Body>
-                    <Label style={{ marginTop: 4 }}>
-                      {item.language} · {item.license}
-                    </Label>
+                  <View style={{ width: 18, alignItems: 'center' }}>
+                    {isSelected && <Check size={18} color={theme.colors.primary} />}
                   </View>
-                  {isSelected && <Check size={18} color={theme.colors.primary} />}
+                  <Body
+                    style={{
+                      fontFamily: theme.fontFamily.sansSemiBold,
+                      color: isSelected ? theme.colors.primary : theme.colors.text,
+                    }}
+                  >
+                    {item.code}: {item.name}
+                  </Body>
                 </View>
               </PressableScale>
             );

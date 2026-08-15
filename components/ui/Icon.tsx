@@ -59,6 +59,7 @@ export const Bookmark = makeIcon('bookmark', 'bookmark-outline');
 export const BookMarked = makeIcon('bookmarks');
 export const BookOpen = makeIcon('book');
 export const CalendarDays = makeIcon('calendar');
+export const CalendarClock = makeIcon('calendar-number');
 export const Check = makeIcon('checkmark');
 export const CheckCircle2 = makeIcon('checkmark-circle', 'checkmark-circle-outline');
 export const ChevronDown = makeIcon('chevron-down');

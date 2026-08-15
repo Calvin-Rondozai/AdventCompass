@@ -15,6 +15,7 @@ export default function HymnalStackLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: 'Hymnal' }} />
+      <Stack.Screen name="favorites" options={{ title: 'Favorites' }} />
       <Stack.Screen name="[language]" options={{ title: '' }} />
       <Stack.Screen name="[language]/[number]" options={{ title: '' }} />
     </Stack>

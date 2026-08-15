@@ -28,8 +28,8 @@ export default function HymnDetailScreen() {
   const [isFavorite, setIsFavorite] = useState(false);
 
   useEffect(() => {
-    getFavoriteHymnNumbers(db, lang).then((favorites) => setIsFavorite(favorites.has(num)));
-  }, [db, lang, num]);
+    getFavoriteHymnNumbers(db).then((favorites) => setIsFavorite(favorites.has(num)));
+  }, [db, num]);
 
   const handleToggleFavorite = useCallback(() => {
     toggleHymnFavorite(db, lang, num).then(setIsFavorite);

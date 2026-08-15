@@ -6,6 +6,7 @@ import { getKv, setKv } from '@/database/kv';
 import { getReminders, REMINDER_DEFS, ReminderType } from '@/database/reminders';
 import { getNotes } from '@/database/notes';
 import { getTodaysLesson } from '@/database/sabbathSchool';
+import { nextOccurrence, SPECIAL_DAYS } from '@/database/specialDays';
 
 // expo-notifications crashes on import in Expo Go on Android since SDK 53 (it removed
 // support and throws instead of just warning) — even just `require`-ing the module is
@@ -174,6 +175,46 @@ export async function cancelNoteReminder(db: SQLiteDatabase, noteId: number): Pr
     await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
     await setKv(db, noteNotificationIdKey(noteId), '');
   }
+}
+
+const SPECIAL_DAYS_YEAR_KEY = 'special_days_scheduled_year';
+const SPECIAL_DAYS_NOTIF_IDS_KEY = 'notif_ids_special_days';
+
+// Schedules a one-time notification for every GC special day still ahead this calendar
+// year (see database/specialDays.ts) — idempotent per year via a stored flag, so this is
+// safe to call on every app launch: it's a no-op once this year's batch is already
+// scheduled, and only does real work again the first time it runs after the year rolls
+// over (rescheduling next year's dates, which will have shifted slightly in the
+// upstream calendar).
+export async function scheduleSpecialDayNotifications(db: SQLiteDatabase): Promise<void> {
+  if (!Notifications) return;
+  const now = new Date();
+  const currentYear = String(now.getFullYear());
+  const scheduledYear = await getKv(db, SPECIAL_DAYS_YEAR_KEY);
+  if (scheduledYear === currentYear) return;
+
+  const existingIdsRaw = await getKv(db, SPECIAL_DAYS_NOTIF_IDS_KEY);
+  if (existingIdsRaw) {
+    const ids: string[] = JSON.parse(existingIdsRaw);
+    await Promise.all(ids.map((id) => Notifications!.cancelScheduledNotificationAsync(id).catch(() => {})));
+  }
+
+  const newIds: string[] = [];
+  for (const day of SPECIAL_DAYS) {
+    const date = nextOccurrence(day, now);
+    if (date.getFullYear() !== now.getFullYear()) continue; // already past this year — next year's run will pick it up
+    const id = await Notifications.scheduleNotificationAsync({
+      content: { title: 'Special Day', body: day.title },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: new Date(date.getFullYear(), date.getMonth(), date.getDate(), 8, 0, 0),
+        channelId: ANDROID_CHANNEL_ID,
+      },
+    });
+    newIds.push(id);
+  }
+  await setKv(db, SPECIAL_DAYS_NOTIF_IDS_KEY, JSON.stringify(newIds));
+  await setKv(db, SPECIAL_DAYS_YEAR_KEY, currentYear);
 }
 
 export async function scheduleNoteReminder(
