@@ -9,6 +9,8 @@ import { getVerseRange } from '@/database/bible';
 import { findScriptureRefs } from '@/database/scriptureRefs';
 import { getKv } from '@/database/kv';
 import { DEFAULT_TRANSLATION } from '@/database/translations';
+import { flattenLessonForAI, getCurrentWeekLesson } from '@/database/sabbathSchool';
+import type { AnswerMode } from './aiSettings';
 
 // llama.rn is a native module — Expo Go (StoreClient) can never load it, only a
 // development build can. Same check services/notifications.ts uses for its own
@@ -186,6 +188,81 @@ function formatRawChunks(chunks: SearchChunk[]): string {
   return chunks.map((c) => `${c.title}\n${c.text}`).join('\n\n');
 }
 
+// "This week's lesson" needs the WHOLE week's content (every day's blocks) as grounding,
+// not a handful of keyword-matched excerpts — the normal search pipeline below is the
+// wrong tool for it, so these two intents are detected and answered separately, before
+// ever reaching search.
+const LEADER_GUIDE_RE = /\bleader'?s?\s+guide\b|\bdiscussion\s+leader\b|\bhow\s+to\s+lead\b|\blead(ing)?\s+(this|the)\s+(discussion|lesson|class)\b/i;
+const WEEK_SUMMARY_RE = /\b(this|the)\s+week'?s?\s+(summary|overview)\b|\bsummar(y|ize)\b[\s\S]*\b(lesson|week)\b|\bweekly\s+summary\b/i;
+
+const NO_LESSON_DOWNLOADED_REPLY =
+  "I don't see a Sabbath School lesson downloaded for this week — download this quarter under More → Sabbath School first, then ask again.";
+
+// Offline (on-device) excerpts are normally trimmed to ~350 chars each (see
+// trimForOffline) — nowhere near enough for a whole week's lesson, so this intent gets
+// its own, much larger budget per mode: generous enough to cover a full week condensed
+// for the small on-device model's context window, and the full week essentially
+// unabridged for the cloud model, which has no such constraint.
+const WEEKLY_LESSON_MAX_CHARS = { offline: 1800, online: 6000 };
+
+async function answerAboutWeeklyLesson(
+  db: SQLiteDatabase,
+  kind: 'summary' | 'leader_guide',
+  answerMode: AnswerMode,
+  callbacks?: AssistantCallbacks
+): Promise<void> {
+  const lesson = await getCurrentWeekLesson(db);
+  if (!lesson) {
+    callbacks?.onSection?.(NO_LESSON_DOWNLOADED_REPLY);
+    return;
+  }
+
+  const lessonText = flattenLessonForAI(lesson, WEEKLY_LESSON_MAX_CHARS[answerMode === 'online' ? 'online' : 'offline']);
+  const chunk: SearchChunk = {
+    source: 'sabbath_school',
+    ref: `${lesson.quarterId}|${lesson.week}`,
+    title: `Sabbath School — Lesson ${lesson.week}: ${lesson.lessonTitle}`,
+    text: lessonText,
+  };
+  const instruction =
+    kind === 'summary'
+      ? "Summarize this week's Sabbath School lesson for someone who hasn't read it yet: the memory text, the key point of each day, and 4-5 discussion questions a class could use."
+      : "I'm leading this week's Sabbath School discussion. Give me a leader's guide: an opening hook, how to walk the class through each day's key idea, and specific discussion questions to ask along the way.";
+
+  if (answerMode === 'online') {
+    if (!GROQ_AVAILABLE) {
+      callbacks?.onSection?.("Online AI isn't set up yet. Switch to offline mode in AI settings, or ask again once it's configured.");
+      return;
+    }
+    try {
+      const rawText = await answerOnlineFromContext(instruction, [chunk], [], callbacks?.onToken);
+      const trimmed = rawText.trim();
+      callbacks?.onSection?.(trimmed || "I'm not sure — I don't have a confident answer for that one.", [chunk]);
+    } catch (error) {
+      callbacks?.onSection?.(describeGroqError(error));
+    }
+    return;
+  }
+
+  if (!AI_INFERENCE_AVAILABLE) {
+    callbacks?.onSection?.("AI answers aren't available in Expo Go. This needs a development build with the on-device model wired up.");
+    return;
+  }
+  const modelInfo = await getActiveModelInfo(db);
+  if (!modelInfo.ready || !modelInfo.path) {
+    callbacks?.onSection?.('Set up the AI model above first (download or import), then ask again.');
+    return;
+  }
+  await answerFromContext(modelInfo.path, instruction, [chunk], {
+    onToken: callbacks?.onToken,
+    onSection: (rawSectionText, isLast) => {
+      const trimmed = rawSectionText.trim();
+      const sectionText = trimmed || "I couldn't summarize that clearly from this week's lesson — try rephrasing.";
+      callbacks?.onSection?.(sectionText, isLast ? [chunk] : undefined);
+    },
+  });
+}
+
 export type AssistantCallbacks = {
   onToken?: (partialText: string) => void; // live text of whichever section is currently generating
   // fires once per finished section — push each as its own chat message. `sources` is the
@@ -248,6 +325,17 @@ export async function askAssistant(question: string, db: SQLiteDatabase, callbac
   const verseLookup = await directVerseLookup(question, db);
   if (verseLookup) {
     callbacks?.onSection?.(verseLookup);
+    return;
+  }
+
+  // Checked before search: both intents need the whole current week's lesson as
+  // grounding, which search (built for short, keyword-matched excerpts) can't supply.
+  if (LEADER_GUIDE_RE.test(question)) {
+    await answerAboutWeeklyLesson(db, 'leader_guide', await getAnswerMode(db), callbacks);
+    return;
+  }
+  if (WEEK_SUMMARY_RE.test(question)) {
+    await answerAboutWeeklyLesson(db, 'summary', await getAnswerMode(db), callbacks);
     return;
   }
 

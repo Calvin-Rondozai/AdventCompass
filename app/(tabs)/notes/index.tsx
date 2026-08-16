@@ -14,7 +14,6 @@ import {
   Note,
   NOTE_CATEGORIES,
   NoteCategory,
-  parseChecklist,
   toggleNoteArchived,
   toggleNotePinned,
 } from '@/database/notes';
@@ -127,7 +126,6 @@ export default function NotesListScreen() {
   };
 
   const renderCard = (item: Note, style?: object) => {
-    const items = parseChecklist(item.checklist);
     const cardBg = item.color ? HIGHLIGHT_HEX[theme.scheme][item.color] : theme.colors.surface;
     const card = (
       <PressableScale
@@ -155,16 +153,10 @@ export default function NotesListScreen() {
               {item.title || 'Untitled'}
             </Body>
           </View>
-          {items.length > 0 ? (
-            <Body style={{ color: theme.colors.textMuted, fontSize: theme.fontSize.sm }} numberOfLines={2}>
-              {items.filter((i) => i.done).length}/{items.length} checked · {items[0].text || 'List item'}
+          {!!item.content && (
+            <Body style={{ color: theme.colors.textMuted, fontSize: theme.fontSize.sm }} numberOfLines={viewMode === 'grid' ? 4 : 2}>
+              {item.content}
             </Body>
-          ) : (
-            !!item.content && (
-              <Body style={{ color: theme.colors.textMuted, fontSize: theme.fontSize.sm }} numberOfLines={viewMode === 'grid' ? 4 : 2}>
-                {item.content}
-              </Body>
-            )
           )}
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: theme.spacing.xs, gap: theme.spacing.xs }}>
             <Label numberOfLines={1}>{NOTE_CATEGORIES.find((c) => c.key === item.category)?.label ?? item.category}</Label>

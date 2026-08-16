@@ -150,3 +150,59 @@ export async function getTodaysLesson(db: SQLiteDatabase, date: Date = new Date(
   }
   return best;
 }
+
+export type CurrentWeekLesson = {
+  quarterId: string;
+  quarterTitle: string;
+  week: number;
+  lessonTitle: string;
+  days: SabbathDay[];
+};
+
+// Same "most recent day on or before today, across every downloaded quarter" search as
+// getTodaysLesson, but returns the WHOLE week's lesson (every day's blocks) instead of
+// just the closest day — used by the AI Assistant's weekly-summary/leader's-guide
+// answers, which need the full week's content, not one day of it.
+export async function getCurrentWeekLesson(db: SQLiteDatabase, date: Date = new Date()): Promise<CurrentWeekLesson | null> {
+  const todayUTC = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  const rows = await getDownloadedQuarters(db);
+  let best: CurrentWeekLesson | null = null;
+  let bestTime = -Infinity;
+
+  for (const row of rows) {
+    const quarter = await getQuarterData(db, row.id);
+    if (!quarter) continue;
+    for (const lesson of quarter.lessons) {
+      for (const day of lesson.days) {
+        const t = parseSourceDate(day.date);
+        if (Number.isNaN(t) || t > todayUTC) continue;
+        if (t > bestTime) {
+          bestTime = t;
+          best = {
+            quarterId: quarter.id,
+            quarterTitle: quarter.title,
+            week: lesson.week,
+            lessonTitle: lesson.title,
+            days: lesson.days,
+          };
+        }
+      }
+    }
+  }
+  return best;
+}
+
+// Turns a week's lesson into plain text suitable for feeding to the AI as grounding —
+// every day's title and blocks, headings kept as headings, questions kept inline (they're
+// exactly the kind of "things to discuss" a summary or leader's guide needs to draw on).
+export function flattenLessonForAI(lesson: CurrentWeekLesson, maxChars: number): string {
+  const lines: string[] = [`Sabbath School — Lesson ${lesson.week}: ${lesson.lessonTitle}`];
+  for (const day of lesson.days) {
+    lines.push(`\n${day.title}`);
+    for (const block of day.blocks) {
+      lines.push(block.text);
+    }
+  }
+  const full = lines.join('\n');
+  return full.length > maxChars ? `${full.slice(0, maxChars)}…` : full;
+}
