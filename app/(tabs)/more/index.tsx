@@ -22,23 +22,23 @@ import {
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { PressableScale } from '@/components/ui/PressableScale';
-import { Body, Label } from '@/components/ui/Typography';
+import { Body } from '@/components/ui/Typography';
 
 const MENU = [
-  { href: '/more/sabbath-school', Icon: CalendarDays, title: 'Sabbath School', subtitle: 'Adult Bible Study Guide, auto-updated' },
-  { href: '/more/devotional', Icon: BookHeart, title: 'Devotions', subtitle: "Today's devotional & prayer prompts" },
-  { href: '/more/reading-plans', Icon: BookOpen, title: 'Reading Plans', subtitle: 'John, Psalms, Proverbs, or your own' },
-  { href: '/more/egw', Icon: BookMarked, title: 'Ellen G. White Books', subtitle: 'Steps to Christ, Desire of Ages & more' },
-  { href: '/more/beliefs', Icon: ListChecks, title: 'Fundamental Beliefs', subtitle: '28 beliefs of Seventh-day Adventists' },
-  { href: '/more/commentary', Icon: Library, title: 'Bible Commentary', subtitle: 'S.D.A. Bible Commentary, verse by verse' },
-  { href: '/more/prayer', Icon: HeartHandshake, title: 'Prayer Journal', subtitle: 'Track prayer requests & answers' },
-  { href: '/more/offertory', Icon: HandCoins, title: 'Offertory Reading', subtitle: 'Scripture readings for the offering' },
-  { href: '/more/topical-verses', Icon: Heart, title: 'Topical Verses', subtitle: 'Anxiety, grief, joy & more: verses that help' },
-  { href: '/more/childrens-sermons', Icon: Gift, title: "Children's Sermons", subtitle: 'Object lessons for worship time' },
-  { href: '/more/special-days', Icon: CalendarClock, title: 'Special Days', subtitle: 'GC calendar of special days & offerings' },
-  { href: '/more/ai-assistant', Icon: Sparkles, title: 'AI Bible Assistant', subtitle: 'Explain verses & topics' },
-  { href: '/more/settings', Icon: SettingsIcon, title: 'Settings', subtitle: 'Reminders, health & preferences' },
-  { href: '/more/about', Icon: Info, title: 'About', subtitle: 'Version, contact & credits' },
+  { href: '/more/sabbath-school', Icon: CalendarDays, title: 'Sabbath School' },
+  { href: '/more/devotional', Icon: BookHeart, title: 'Devotions' },
+  { href: '/more/reading-plans', Icon: BookOpen, title: 'Reading Plans' },
+  { href: '/more/egw', Icon: BookMarked, title: 'Ellen G. White Books' },
+  { href: '/more/beliefs', Icon: ListChecks, title: 'Fundamental Beliefs' },
+  { href: '/more/commentary', Icon: Library, title: 'Bible Commentary' },
+  { href: '/more/prayer', Icon: HeartHandshake, title: 'Prayer Journal' },
+  { href: '/more/offertory', Icon: HandCoins, title: 'Offertory Reading' },
+  { href: '/more/topical-verses', Icon: Heart, title: 'Topical Verses' },
+  { href: '/more/childrens-sermons', Icon: Gift, title: "Children's Sermons" },
+  { href: '/more/special-days', Icon: CalendarClock, title: 'Special Days' },
+  { href: '/more/ai-assistant', Icon: Sparkles, title: 'AI Bible Assistant' },
+  { href: '/more/settings', Icon: SettingsIcon, title: 'Settings' },
+  { href: '/more/about', Icon: Info, title: 'About' },
 ] as const;
 
 export default function MoreMenuScreen() {
@@ -47,17 +47,16 @@ export default function MoreMenuScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={[]}>
       <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.sm }}>
-        {MENU.map(({ href, Icon, title, subtitle }) => (
+        {MENU.map(({ href, Icon, title }) => (
           <PressableScale key={href} onPress={() => router.push(href)} scaleTo={0.99}>
             <View
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
                 backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.md,
-                borderWidth: 1,
-                borderColor: theme.colors.border,
+                borderRadius: theme.radius.lg,
                 padding: theme.spacing.md,
+                ...theme.shadow.subtle,
               }}
             >
               <View
@@ -74,7 +73,6 @@ export default function MoreMenuScreen() {
               </View>
               <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
                 <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{title}</Body>
-                <Label style={{ marginTop: 2 }}>{subtitle}</Label>
               </View>
               <ChevronRight size={18} color={theme.colors.textFaint} />
             </View>

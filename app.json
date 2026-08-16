@@ -37,8 +37,8 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#25516C",
-          "image": "./assets/splash-mark.png",
-          "imageWidth": 200
+          "image": "./assets/splash-mark-square.png",
+          "imageWidth": 510
         }
       ],
       [
@@ -81,7 +81,8 @@
             }
           ]
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true

@@ -1,60 +1,60 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { FlatList, Image, Modal, Pressable, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Image, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { BookOpen, ChevronRight, Download, Grid3x3, ListChecks, Settings, Trash2 } from '@/components/ui/Icon';
+import { BookOpen, ChevronRight, Download, Grid3x3, ListChecks, RefreshCw, Trash2 } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { getKv, setKv } from '@/database/kv';
 import {
   deleteQuarter,
   getDownloadedQuarters,
+  SABBATH_AGE_DIVISIONS,
   SABBATH_EDITIONS,
   SABBATH_LANGUAGES,
+  SabbathAgeDivision,
   SabbathQuarterRow,
 } from '@/database/sabbathSchool';
+import { getDownloadedPdfLessons, SabbathPdfLesson } from '@/database/sabbathPdfLessons';
 import {
   getActiveSabbathSyncTask,
   getSabbathSyncProgress,
+  guessCoverUrl,
   isSyncingSabbathSchool,
   subscribeSabbathSync,
   SyncProgress,
   syncSabbathSchool,
   syncSpecificQuarter,
 } from '@/services/sabbathSchoolSync';
+import {
+  deletePdfLessonAndFiles,
+  getActivePdfSyncTask,
+  getPdfSyncProgress,
+  getSyncingPdfDivision,
+  isSyncingPdfLesson,
+  PdfSyncProgress,
+  subscribePdfSync,
+  syncPdfDivision,
+} from '@/services/sabbathPdfSync';
 import { showAlert } from '@/components/ui/AppAlert';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { AnimatedCard } from '@/components/ui/AnimatedCard';
+import { CoverThumbFull } from '@/components/sabbathSchool/CoverThumbFull';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import { Body, Heading, Label } from '@/components/ui/Typography';
+import { Body, Label } from '@/components/ui/Typography';
 
 const VIEW_MODE_KEY = 'sabbath_school_view_mode';
+// The specialized age divisions (everything besides Standard/Easy Reading) are browsed and
+// downloaded in English only for now — same simplification as the rest of this feature,
+// see SABBATH_AGE_DIVISIONS in database/sabbathSchool.ts.
+const LIBRARY_LANG = 'en';
 
-function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  const theme = useTheme();
-  return (
-    <PressableScale onPress={onPress} scaleTo={0.96}>
-      <View
-        style={{
-          paddingHorizontal: theme.spacing.sm + 2,
-          paddingVertical: theme.spacing.xs,
-          borderRadius: theme.radius.pill,
-          backgroundColor: active ? theme.colors.primary : theme.colors.surface,
-          borderWidth: 1,
-          borderColor: active ? theme.colors.primary : theme.colors.border,
-          marginRight: theme.spacing.xs,
-          marginBottom: theme.spacing.xs,
-        }}
-      >
-        <Body style={{ color: active ? theme.colors.onPrimary : theme.colors.text, fontSize: theme.fontSize.sm }}>{label}</Body>
-      </View>
-    </PressableScale>
-  );
+function divisionLabel(suffix: string): string {
+  return SABBATH_AGE_DIVISIONS.find((d) => d.suffix === suffix)?.label ?? suffix;
 }
 
-// List view: small fixed thumbnail. Grid view: cover fills the full card width, the card's
-// height grows to fit it (via aspect ratio) plus the title/label text underneath.
+// List view's small fixed thumbnail (grid view uses the shared full-bleed CoverThumbFull).
 function CoverThumb({ uri, width, height }: { uri: string | null; width: number; height: number }) {
   const theme = useTheme();
   const [failed, setFailed] = useState(false);
@@ -84,72 +84,65 @@ function CoverThumb({ uri, width, height }: { uri: string | null; width: number;
   );
 }
 
-function CoverThumbFull({ uri }: { uri: string | null }) {
-  const theme = useTheme();
-  const [failed, setFailed] = useState(false);
-
-  // No maxHeight cap — the cover should fill however much width its column gets (half the
-  // screen, minus padding/gap, in the 2-up grid) and grow tall enough to match that width's
-  // 3:4 aspect ratio, not be capped down to a fixed small thumbnail size.
-  if (!uri || failed) {
-    return (
-      <View
-        style={{
-          width: '100%',
-          aspectRatio: 3 / 4,
-          borderRadius: theme.radius.sm,
-          backgroundColor: theme.colors.accentSoft,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <BookOpen size={48} color={theme.colors.accent} strokeWidth={1.75} />
-      </View>
-    );
-  }
-  return (
-    <Image
-      source={{ uri }}
-      onError={() => setFailed(true)}
-      style={{ width: '100%', aspectRatio: 3 / 4, borderRadius: theme.radius.sm, backgroundColor: theme.colors.surfaceMuted }}
-      resizeMode="cover"
-    />
-  );
-}
+// A tile is a downloaded text quarter, a downloaded PDF-format lesson set, or an age
+// division that hasn't been downloaded yet — all rendered side by side in the same grid/
+// list so every book, downloaded or not, text or PDF, looks and behaves the same way.
+type GridItem =
+  | { kind: 'downloaded'; id: string; row: SabbathQuarterRow }
+  | { kind: 'downloadedPdf'; id: string; lesson: SabbathPdfLesson }
+  | { kind: 'available'; id: string; division: SabbathAgeDivision };
 
 export default function SabbathSchoolScreen() {
   const theme = useTheme();
   const db = useSQLiteContext();
   const navigation = useNavigation();
   const [quarters, setQuarters] = useState<SabbathQuarterRow[]>([]);
+  const [pdfLessons, setPdfLessons] = useState<SabbathPdfLesson[]>([]);
   // Seeded from module-level state (not just false) so re-opening this screen while a
   // download kicked off earlier is still in flight shows it as already running, with
   // real progress, instead of a blank "Check for new lessons" button.
-  const [syncing, setSyncing] = useState(isSyncingSabbathSchool());
-  const [progress, setProgress] = useState<SyncProgress | null>(getSabbathSyncProgress());
-  const [lang, setLang] = useState(SABBATH_LANGUAGES[0].code);
-  const [edition, setEdition] = useState(SABBATH_EDITIONS[0].code);
+  const [textSyncing, setTextSyncing] = useState(isSyncingSabbathSchool());
+  const [textProgress, setTextProgress] = useState<SyncProgress | null>(getSabbathSyncProgress());
+  const [downloadingTextSuffix, setDownloadingTextSuffix] = useState<string | null>(null);
+  const [pdfSyncing, setPdfSyncing] = useState(isSyncingPdfLesson());
+  const [pdfProgress, setPdfProgress] = useState<PdfSyncProgress | null>(getPdfSyncProgress());
+  const [pdfSyncingDivision, setPdfSyncingDivision] = useState<string | null>(getSyncingPdfDivision());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [settingsVisible, setSettingsVisible] = useState(false);
 
-  // The download itself is a module-level singleton (see sabbathSchoolSync.ts) that
-  // keeps running even if this screen unmounts — this just mirrors its live state so the
-  // UI reflects whatever's actually happening, whether this screen started the download
-  // or is just re-observing one already in progress.
+  const refresh = useCallback(() => {
+    getDownloadedQuarters(db).then(setQuarters);
+    getDownloadedPdfLessons(db).then(setPdfLessons);
+  }, [db]);
+
+  // The text-lesson download itself is a module-level singleton (see sabbathSchoolSync.ts)
+  // that keeps running even if this screen unmounts — this just mirrors its live state so
+  // the UI reflects whatever's actually happening, whether this screen started the
+  // download or is just re-observing one already in progress.
   useEffect(() => {
     const unsubscribe = subscribeSabbathSync((p) => {
-      setProgress(p);
-      setSyncing(isSyncingSabbathSchool());
+      setTextProgress(p);
+      const active = isSyncingSabbathSchool();
+      setTextSyncing(active);
+      if (!active) setDownloadingTextSuffix(null);
     });
     const active = getActiveSabbathSyncTask();
-    if (active) {
-      active.then((result) => {
-        refresh();
-        if (!result.synced) {
-          showAlert('Up to date', 'No new quarter to download right now. Check your connection or try again later.');
-        }
-      });
-    }
+    if (active) active.then(() => refresh());
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Same idea, for the separate PDF-division singleton (see services/sabbathPdfSync.ts) —
+  // kept independent of the text one above so a PDF division download and a text-quarter
+  // check can proceed at the same time without either blocking the other.
+  useEffect(() => {
+    const unsubscribe = subscribePdfSync((p) => {
+      setPdfProgress(p);
+      const active = isSyncingPdfLesson();
+      setPdfSyncing(active);
+      setPdfSyncingDivision(active ? getSyncingPdfDivision() : null);
+    });
+    const active = getActivePdfSyncTask();
+    if (active) active.then(() => refresh());
     return unsubscribe;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -166,12 +159,18 @@ export default function SabbathSchoolScreen() {
     setKv(db, VIEW_MODE_KEY, next).catch(() => {});
   };
 
+  const checkingForUpdates = textSyncing && !downloadingTextSuffix;
+
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
         <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
-          <PressableScale onPress={() => setSettingsVisible(true)} style={{ padding: theme.spacing.xs }}>
-            <Settings size={20} color={theme.colors.text} strokeWidth={1.75} />
+          <PressableScale onPress={handleCheckForUpdates} disabled={textSyncing} style={{ padding: theme.spacing.xs }}>
+            {checkingForUpdates ? (
+              <ActivityIndicator size="small" color={theme.colors.text} />
+            ) : (
+              <RefreshCw size={20} color={theme.colors.text} strokeWidth={1.75} />
+            )}
           </PressableScale>
           <PressableScale onPress={toggleViewMode} style={{ padding: theme.spacing.xs }}>
             {viewMode === 'grid' ? (
@@ -184,11 +183,7 @@ export default function SabbathSchoolScreen() {
       ),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigation, theme, viewMode]);
-
-  const refresh = useCallback(() => {
-    getDownloadedQuarters(db).then(setQuarters);
-  }, [db]);
+  }, [navigation, theme, viewMode, textSyncing, checkingForUpdates]);
 
   useFocusEffect(
     useCallback(() => {
@@ -196,8 +191,13 @@ export default function SabbathSchoolScreen() {
     }, [refresh])
   );
 
-  const handleUpdate = async () => {
-    setSyncing(true);
+  // Manual only — checking every time the screen opens made the UI feel sluggish, so this
+  // now runs solely from the header refresh button. syncSabbathSchool is a module-level
+  // singleton (see sabbathSchoolSync.ts), so this is a no-op if a division download below
+  // (or the app-launch sync) is already running rather than starting a duplicate.
+  const handleCheckForUpdates = async () => {
+    if (textSyncing) return;
+    setTextSyncing(true);
     const result = await syncSabbathSchool(db, { force: false });
     refresh();
     if (!result.synced) {
@@ -205,16 +205,25 @@ export default function SabbathSchoolScreen() {
     }
   };
 
-  const handleDownloadVariant = async () => {
-    if (lang === 'en' && edition === 'standard') return handleUpdate();
-    setSyncing(true);
-    const editionSuffix = SABBATH_EDITIONS.find((e) => e.code === edition)?.suffix ?? '';
-    const result = await syncSpecificQuarter(db, lang, editionSuffix);
-    refresh();
-    if (!result.synced) {
-      showAlert('Not available', "That language/edition isn't available yet. Check your connection or try again later.");
+  const handleDownloadDivision = async (division: SabbathAgeDivision) => {
+    if (division.format === 'text') {
+      if (textSyncing) return;
+      setDownloadingTextSuffix(division.suffix);
+      setTextSyncing(true);
+      const result = await syncSpecificQuarter(db, LIBRARY_LANG, division.suffix);
+      refresh();
+      if (!result.synced) {
+        showAlert('Not available', `"${division.label}" isn't available yet. Check your connection or try again later.`);
+      }
     } else {
-      setSettingsVisible(false);
+      if (pdfSyncing) return;
+      setPdfSyncingDivision(division.suffix);
+      setPdfSyncing(true);
+      const result = await syncPdfDivision(db, division.suffix);
+      refresh();
+      if (!result.synced) {
+        showAlert('Not available', `"${division.label}" isn't available yet. Check your connection or try again later.`);
+      }
     }
   };
 
@@ -232,7 +241,36 @@ export default function SabbathSchoolScreen() {
     ]);
   };
 
-  const isDefaultVariant = lang === 'en' && edition === 'standard';
+  const handleDeletePdfLesson = (lesson: SabbathPdfLesson) => {
+    showAlert('Delete lesson set', `Remove "${lesson.title}" from this device? You can download it again later.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await deletePdfLessonAndFiles(db, lesson.id, lesson.division, lesson.code);
+          refresh();
+        },
+      },
+    ]);
+  };
+
+  // Every division not already downloaded (in the library language) shows up as its own
+  // tile right alongside the real lessons — no separate "browse" screen needed.
+  const availableDivisions = useMemo(() => {
+    const downloadedText = new Set(quarters.filter((q) => q.lang === LIBRARY_LANG).map((q) => q.edition));
+    const downloadedPdf = new Set(pdfLessons.map((p) => p.division));
+    return SABBATH_AGE_DIVISIONS.filter((d) => (d.format === 'text' ? !downloadedText.has(d.suffix) : !downloadedPdf.has(d.suffix)));
+  }, [quarters, pdfLessons]);
+
+  const data: GridItem[] = useMemo(
+    () => [
+      ...quarters.map((row): GridItem => ({ kind: 'downloaded', id: row.id, row })),
+      ...pdfLessons.map((lesson): GridItem => ({ kind: 'downloadedPdf', id: `pdf:${lesson.id}`, lesson })),
+      ...availableDivisions.map((division): GridItem => ({ kind: 'available', id: `available:${division.suffix}`, division })),
+    ],
+    [quarters, pdfLessons, availableDivisions]
+  );
 
   const emptyState = (
     <Body style={{ color: theme.colors.textMuted, textAlign: 'center', marginTop: theme.spacing.lg }}>
@@ -244,193 +282,247 @@ export default function SabbathSchoolScreen() {
     viewMode === 'grid' ? (
       <FlatList
         key="grid"
-        data={quarters}
+        data={data}
         keyExtractor={(item) => item.id}
         numColumns={2}
         columnWrapperStyle={{ gap: theme.spacing.md }}
         contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl, gap: theme.spacing.md }}
         ListEmptyComponent={emptyState}
-        renderItem={({ item }) => (
-          <PressableScale
-            onPress={() => router.push({ pathname: '/more/sabbath-school/[id]', params: { id: item.id } })}
-            scaleTo={0.98}
-            style={{ flex: 1 }}
-          >
-            <View
-              style={{
-                backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.md,
-                borderWidth: 1,
-                borderColor: theme.colors.border,
-                padding: theme.spacing.sm,
-              }}
+        renderItem={({ item }) => {
+          if (item.kind === 'downloaded') {
+            const row = item.row;
+            return (
+              <PressableScale
+                onPress={() => router.push({ pathname: '/more/sabbath-school/[id]', params: { id: row.id } })}
+                scaleTo={0.98}
+                style={{ flex: 1 }}
+              >
+                <View
+                  style={{
+                    backgroundColor: theme.colors.surface,
+                    borderRadius: theme.radius.lg,
+                    padding: theme.spacing.sm,
+                    ...theme.shadow.subtle,
+                  }}
+                >
+                  <CoverThumbFull uri={row.cover} />
+                  <Body style={{ fontFamily: theme.fontFamily.sansSemiBold, marginTop: theme.spacing.sm }} numberOfLines={2}>
+                    {row.title}
+                  </Body>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
+                    <Label numberOfLines={1} style={{ flex: 1 }}>
+                      {SABBATH_LANGUAGES.find((l) => l.code === row.lang)?.label ?? row.lang}
+                      {row.edition ? ` · ${SABBATH_EDITIONS.find((e) => e.suffix === row.edition)?.label ?? row.edition}` : ''}
+                    </Label>
+                    <PressableScale onPress={() => handleDelete(row.id, row.title)} style={{ padding: theme.spacing.xs }}>
+                      <Trash2 size={16} color={theme.colors.danger} strokeWidth={1.75} />
+                    </PressableScale>
+                  </View>
+                </View>
+              </PressableScale>
+            );
+          }
+
+          if (item.kind === 'downloadedPdf') {
+            const lesson = item.lesson;
+            return (
+              <PressableScale
+                onPress={() => router.push({ pathname: '/more/sabbath-school/pdf/[id]', params: { id: lesson.id } })}
+                scaleTo={0.98}
+                style={{ flex: 1 }}
+              >
+                <View
+                  style={{
+                    backgroundColor: theme.colors.surface,
+                    borderRadius: theme.radius.lg,
+                    padding: theme.spacing.sm,
+                    ...theme.shadow.subtle,
+                  }}
+                >
+                  <CoverThumbFull uri={guessCoverUrl(LIBRARY_LANG, lesson.division, lesson.code)} />
+                  <Body style={{ fontFamily: theme.fontFamily.sansSemiBold, marginTop: theme.spacing.sm }} numberOfLines={2}>
+                    {lesson.title}
+                  </Body>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
+                    <Label numberOfLines={1} style={{ flex: 1 }}>
+                      {divisionLabel(lesson.division)} · PDF
+                    </Label>
+                    <PressableScale onPress={() => handleDeletePdfLesson(lesson)} style={{ padding: theme.spacing.xs }}>
+                      <Trash2 size={16} color={theme.colors.danger} strokeWidth={1.75} />
+                    </PressableScale>
+                  </View>
+                </View>
+              </PressableScale>
+            );
+          }
+
+          const division = item.division;
+          const isDownloadingThis =
+            division.format === 'text'
+              ? textSyncing && downloadingTextSuffix === division.suffix
+              : pdfSyncing && pdfSyncingDivision === division.suffix;
+          const isBusyElsewhere =
+            division.format === 'text'
+              ? textSyncing && downloadingTextSuffix !== division.suffix
+              : pdfSyncing && pdfSyncingDivision !== division.suffix;
+          const activeProgress = division.format === 'text' ? textProgress : pdfProgress;
+          return (
+            <PressableScale
+              onPress={() => handleDownloadDivision(division)}
+              scaleTo={0.98}
+              style={{ flex: 1 }}
+              disabled={isBusyElsewhere}
             >
-              <CoverThumbFull uri={item.cover} />
-              <Body style={{ fontFamily: theme.fontFamily.sansSemiBold, marginTop: theme.spacing.sm }} numberOfLines={2}>
-                {item.title}
-              </Body>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
-                <Label numberOfLines={1} style={{ flex: 1 }}>
-                  {SABBATH_LANGUAGES.find((l) => l.code === item.lang)?.label ?? item.lang}
-                  {item.edition ? ` · ${SABBATH_EDITIONS.find((e) => e.suffix === item.edition)?.label ?? item.edition}` : ''}
-                </Label>
-                <PressableScale onPress={() => handleDelete(item.id, item.title)} style={{ padding: theme.spacing.xs }}>
-                  <Trash2 size={16} color={theme.colors.danger} strokeWidth={1.75} />
-                </PressableScale>
+              <View
+                style={{
+                  backgroundColor: theme.colors.surface,
+                  borderRadius: theme.radius.lg,
+                  padding: theme.spacing.sm,
+                  opacity: isBusyElsewhere ? 0.5 : 1,
+                  ...theme.shadow.subtle,
+                }}
+              >
+                <CoverThumbFull uri={guessCoverUrl(LIBRARY_LANG, division.suffix)} />
+                <Body style={{ fontFamily: theme.fontFamily.sansSemiBold, marginTop: theme.spacing.sm }} numberOfLines={2}>
+                  {division.label}
+                </Body>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
+                  <Label numberOfLines={1} style={{ flex: 1, color: isDownloadingThis ? theme.colors.primary : undefined }}>
+                    {isDownloadingThis ? (activeProgress?.label ?? 'Starting download…') : division.ageGroup}
+                  </Label>
+                  {isDownloadingThis ? (
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
+                  ) : (
+                    <Download size={16} color={theme.colors.primary} strokeWidth={2} />
+                  )}
+                </View>
+                {isDownloadingThis && (
+                  <View style={{ marginTop: theme.spacing.xs }}>
+                    <ProgressBar
+                      progress={activeProgress && activeProgress.total > 0 ? activeProgress.current / activeProgress.total : 0}
+                      color={theme.colors.primary}
+                      trackColor={theme.colors.surfaceMuted}
+                    />
+                  </View>
+                )}
               </View>
-            </View>
-          </PressableScale>
-        )}
+            </PressableScale>
+          );
+        }}
       />
     ) : (
       <FlatList
         key="list"
-        data={quarters}
+        data={data}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}
         ListEmptyComponent={emptyState}
-        renderItem={({ item }) => (
-          <AnimatedCard style={{ marginBottom: theme.spacing.sm, padding: 0 }}>
-            <PressableScale
-              onPress={() => router.push({ pathname: '/more/sabbath-school/[id]', params: { id: item.id } })}
-              scaleTo={0.99}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', padding: theme.spacing.md }}>
-                <CoverThumb uri={item.cover} width={48} height={64} />
-                <View style={{ flex: 1, marginLeft: theme.spacing.sm }}>
-                  <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{item.title}</Body>
-                  <Label style={{ marginTop: 2 }}>
-                    {item.human_date} · {SABBATH_LANGUAGES.find((l) => l.code === item.lang)?.label ?? item.lang}
-                    {item.edition ? ` · ${SABBATH_EDITIONS.find((e) => e.suffix === item.edition)?.label ?? item.edition}` : ''}
-                  </Label>
-                </View>
-                <PressableScale onPress={() => handleDelete(item.id, item.title)} style={{ padding: theme.spacing.xs }}>
-                  <Trash2 size={18} color={theme.colors.danger} strokeWidth={1.75} />
+        renderItem={({ item }) => {
+          if (item.kind === 'downloaded') {
+            const row = item.row;
+            return (
+              <AnimatedCard style={{ marginBottom: theme.spacing.sm, padding: 0 }}>
+                <PressableScale
+                  onPress={() => router.push({ pathname: '/more/sabbath-school/[id]', params: { id: row.id } })}
+                  scaleTo={0.99}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', padding: theme.spacing.md }}>
+                    <CoverThumb uri={row.cover} width={48} height={64} />
+                    <View style={{ flex: 1, marginLeft: theme.spacing.sm }}>
+                      <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{row.title}</Body>
+                      <Label style={{ marginTop: 2 }}>
+                        {row.human_date} · {SABBATH_LANGUAGES.find((l) => l.code === row.lang)?.label ?? row.lang}
+                        {row.edition ? ` · ${SABBATH_EDITIONS.find((e) => e.suffix === row.edition)?.label ?? row.edition}` : ''}
+                      </Label>
+                    </View>
+                    <PressableScale onPress={() => handleDelete(row.id, row.title)} style={{ padding: theme.spacing.xs }}>
+                      <Trash2 size={18} color={theme.colors.danger} strokeWidth={1.75} />
+                    </PressableScale>
+                    <ChevronRight size={16} color={theme.colors.textFaint} />
+                  </View>
                 </PressableScale>
-                <ChevronRight size={16} color={theme.colors.textFaint} />
-              </View>
-            </PressableScale>
-          </AnimatedCard>
-        )}
+              </AnimatedCard>
+            );
+          }
+
+          if (item.kind === 'downloadedPdf') {
+            const lesson = item.lesson;
+            return (
+              <AnimatedCard style={{ marginBottom: theme.spacing.sm, padding: 0 }}>
+                <PressableScale
+                  onPress={() => router.push({ pathname: '/more/sabbath-school/pdf/[id]', params: { id: lesson.id } })}
+                  scaleTo={0.99}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', padding: theme.spacing.md }}>
+                    <CoverThumb uri={guessCoverUrl(LIBRARY_LANG, lesson.division, lesson.code)} width={48} height={64} />
+                    <View style={{ flex: 1, marginLeft: theme.spacing.sm }}>
+                      <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{lesson.title}</Body>
+                      <Label style={{ marginTop: 2 }}>
+                        {lesson.humanDate} · {divisionLabel(lesson.division)} · PDF
+                      </Label>
+                    </View>
+                    <PressableScale onPress={() => handleDeletePdfLesson(lesson)} style={{ padding: theme.spacing.xs }}>
+                      <Trash2 size={18} color={theme.colors.danger} strokeWidth={1.75} />
+                    </PressableScale>
+                    <ChevronRight size={16} color={theme.colors.textFaint} />
+                  </View>
+                </PressableScale>
+              </AnimatedCard>
+            );
+          }
+
+          const division = item.division;
+          const isDownloadingThis =
+            division.format === 'text'
+              ? textSyncing && downloadingTextSuffix === division.suffix
+              : pdfSyncing && pdfSyncingDivision === division.suffix;
+          const isBusyElsewhere =
+            division.format === 'text'
+              ? textSyncing && downloadingTextSuffix !== division.suffix
+              : pdfSyncing && pdfSyncingDivision !== division.suffix;
+          const activeProgress = division.format === 'text' ? textProgress : pdfProgress;
+          return (
+            <AnimatedCard style={{ marginBottom: theme.spacing.sm, padding: 0, opacity: isBusyElsewhere ? 0.5 : 1 }}>
+              <PressableScale onPress={() => handleDownloadDivision(division)} scaleTo={0.99} disabled={isBusyElsewhere}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', padding: theme.spacing.md }}>
+                  <CoverThumb uri={guessCoverUrl(LIBRARY_LANG, division.suffix)} width={48} height={64} />
+                  <View style={{ flex: 1, marginLeft: theme.spacing.sm }}>
+                    <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{division.label}</Body>
+                    <Label style={{ marginTop: 2, color: isDownloadingThis ? theme.colors.primary : undefined }} numberOfLines={1}>
+                      {isDownloadingThis ? (activeProgress?.label ?? 'Starting download…') : `${division.ageGroup} · ${division.description}`}
+                    </Label>
+                    {isDownloadingThis && (
+                      <View style={{ marginTop: theme.spacing.xs }}>
+                        <ProgressBar
+                          progress={activeProgress && activeProgress.total > 0 ? activeProgress.current / activeProgress.total : 0}
+                          color={theme.colors.primary}
+                          trackColor={theme.colors.surfaceMuted}
+                        />
+                      </View>
+                    )}
+                  </View>
+                  {isDownloadingThis ? (
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
+                  ) : (
+                    <Download size={18} color={theme.colors.primary} strokeWidth={2} />
+                  )}
+                </View>
+              </PressableScale>
+            </AnimatedCard>
+          );
+        }}
       />
     );
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>
+      {checkingForUpdates && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: theme.spacing.xs }}>
+          <ActivityIndicator size="small" color={theme.colors.textFaint} />
+          <Label style={{ marginLeft: theme.spacing.xs }}>Checking for new lessons…</Label>
+        </View>
+      )}
       {list}
-
-      <View
-        style={{
-          padding: theme.spacing.lg,
-          paddingTop: theme.spacing.md,
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.border,
-          backgroundColor: theme.colors.surface,
-        }}
-      >
-        <PressableScale onPress={handleUpdate} scaleTo={0.98} disabled={syncing}>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: theme.colors.primary,
-              borderRadius: theme.radius.md,
-              padding: theme.spacing.sm + 2,
-              opacity: syncing ? 0.6 : 1,
-            }}
-          >
-            <Download size={16} color={theme.colors.onPrimary} strokeWidth={2} />
-            <Body style={{ color: theme.colors.onPrimary, fontFamily: theme.fontFamily.sansSemiBold, marginLeft: theme.spacing.xs }}>
-              {syncing ? (progress ? progress.label : 'Checking…') : 'Check for new lessons'}
-            </Body>
-          </View>
-        </PressableScale>
-        {syncing && progress && progress.total > 0 && (
-          <View style={{ marginTop: theme.spacing.sm }}>
-            <ProgressBar
-              progress={progress.current / progress.total}
-              color={theme.colors.primary}
-              trackColor={theme.colors.surfaceMuted}
-            />
-            <Label style={{ marginTop: 4, textAlign: 'center' }}>
-              {Math.round((progress.current / progress.total) * 100)}% · keeps downloading even if you leave this screen
-            </Label>
-          </View>
-        )}
-      </View>
-
-      <Modal visible={settingsVisible} transparent animationType="fade" onRequestClose={() => setSettingsVisible(false)}>
-        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setSettingsVisible(false)}>
-          <Pressable
-            style={{
-              marginTop: 'auto',
-              backgroundColor: theme.colors.background,
-              borderTopLeftRadius: theme.radius.xl,
-              borderTopRightRadius: theme.radius.xl,
-              padding: theme.spacing.lg,
-              paddingBottom: theme.spacing.xl,
-            }}
-          >
-            <Heading style={{ fontSize: theme.fontSize.md, marginBottom: theme.spacing.sm }}>Language & Edition</Heading>
-            <Body style={{ color: theme.colors.textMuted, marginBottom: theme.spacing.md, fontSize: theme.fontSize.sm }}>
-              The standard English and chiShona editions download automatically when the app opens with a
-              connection. Pick another language or the Easy Reading Edition to download it too.
-            </Body>
-
-            <Label style={{ marginBottom: theme.spacing.xs }}>Language</Label>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: theme.spacing.sm }}>
-              {SABBATH_LANGUAGES.map((l) => (
-                <Chip key={l.code} label={l.label} active={lang === l.code} onPress={() => setLang(l.code)} />
-              ))}
-            </View>
-
-            <Label style={{ marginBottom: theme.spacing.xs }}>Edition</Label>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: theme.spacing.md }}>
-              {SABBATH_EDITIONS.map((e) => (
-                <Chip key={e.code} label={e.label} active={edition === e.code} onPress={() => setEdition(e.code)} />
-              ))}
-            </View>
-
-            <PressableScale onPress={handleDownloadVariant} scaleTo={0.98} disabled={syncing}>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: theme.colors.primary,
-                  borderRadius: theme.radius.md,
-                  padding: theme.spacing.sm + 2,
-                  opacity: syncing ? 0.6 : 1,
-                }}
-              >
-                <Download size={16} color={theme.colors.onPrimary} strokeWidth={2} />
-                <Body style={{ color: theme.colors.onPrimary, fontFamily: theme.fontFamily.sansSemiBold, marginLeft: theme.spacing.xs }}>
-                  {syncing
-                    ? progress
-                      ? progress.label
-                      : 'Checking…'
-                    : isDefaultVariant
-                      ? 'Check for new lessons'
-                      : 'Download this language/edition'}
-                </Body>
-              </View>
-            </PressableScale>
-            {syncing && progress && progress.total > 0 && (
-              <View style={{ marginTop: theme.spacing.sm }}>
-                <ProgressBar
-                  progress={progress.current / progress.total}
-                  color={theme.colors.primary}
-                  trackColor={theme.colors.surfaceMuted}
-                />
-                <Label style={{ marginTop: 4, textAlign: 'center' }}>
-                  {Math.round((progress.current / progress.total) * 100)}% · keeps downloading in the background
-                </Label>
-              </View>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
     </SafeAreaView>
   );
 }

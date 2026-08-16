@@ -16,7 +16,9 @@ import {
 // Content itself carries a GC copyright notice restricting reproduction without written
 // authorization — this app only caches it locally for the signed-in user's own offline
 // reading, the same personal-use basis already applied to other copyrighted sources here.
-const REPO_ROOT = 'https://raw.githubusercontent.com/Adventech/sabbath-school-lessons/stage/src';
+// Exported for services/sabbathPdfSync.ts — the info.yml files under this root are
+// public and shared by every division, even the ones whose actual PDFs live elsewhere.
+export const REPO_ROOT = 'https://raw.githubusercontent.com/Adventech/sabbath-school-lessons/stage/src';
 const LAST_SYNC_KEY = 'sabbath_school_last_sync';
 const WEEKS_PER_QUARTER = 13;
 const DAYS_PER_WEEK = 7;
@@ -54,7 +56,9 @@ function setSyncProgress(p: SyncProgress | null): void {
   syncListeners.forEach((listener) => listener(p));
 }
 
-async function fetchText(url: string, timeoutMs = 8000): Promise<string | null> {
+// Exported for services/sabbathPdfSync.ts, which fetches the same repo's public
+// info.yml files for title/human_date metadata.
+export async function fetchText(url: string, timeoutMs = 8000): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -75,7 +79,18 @@ export function quarterCodeForDate(date: Date): string {
   return `${date.getFullYear()}-0${quarter}`;
 }
 
-function shiftQuarter(code: string, delta: number): string {
+// A best-effort cover preview for a division that hasn't been downloaded yet — the cover
+// path is deterministic (same folder-naming convention fetchQuarter uses), so this can show
+// real cover art in the library browser before committing to a full download. If that
+// division/quarter isn't actually published yet (e.g. a translation still lags a quarter
+// behind), the image simply fails to load and the caller's fallback UI takes over.
+export function guessCoverUrl(lang: string, suffix: string, code: string = quarterCodeForDate(new Date())): string {
+  return `${REPO_ROOT}/${lang}/${code}${suffix}/cover.png`;
+}
+
+// Exported for services/sabbathPdfSync.ts, which needs the same "step back a quarter"
+// math when probing for the most recent published quarter on a division's own site.
+export function shiftQuarter(code: string, delta: number): string {
   const [yearStr, qStr] = code.split('-');
   let year = Number(yearStr);
   let q = Number(qStr) + delta;
@@ -90,7 +105,10 @@ function shiftQuarter(code: string, delta: number): string {
   return `${year}-0${q}`;
 }
 
-function parseYamlScalars(raw: string): Record<string, string> {
+// Exported for services/sabbathPdfSync.ts — it fetches the same repo's info.yml for
+// title/human_date metadata (that part is public) even though the PDFs it links to
+// aren't (see that file for why).
+export function parseYamlScalars(raw: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const line of raw.split('\n')) {
     const m = line.match(/^\s*([a-zA-Z_]+):\s*"?([^"]*)"?\s*$/);
@@ -292,11 +310,12 @@ export function syncSpecificQuarter(
 
   syncTask = (async () => {
     try {
-      const totalDays = (TRANSLATION_LAG_LOOKBACK + 1) * WEEKS_PER_QUARTER * DAYS_PER_WEEK;
+      const daysPerCandidate = WEEKS_PER_QUARTER * DAYS_PER_WEEK;
+      const totalDays = (TRANSLATION_LAG_LOOKBACK + 1) * daysPerCandidate;
       let doneDays = 0;
       let candidate = code;
       for (let i = 0; i <= TRANSLATION_LAG_LOOKBACK; i++) {
-        setSyncProgress({ current: doneDays, total: totalDays, label: `Downloading ${candidate}…` });
+        setSyncProgress({ current: doneDays, total: totalDays, label: `Checking ${candidate}…` });
         const quarter = await fetchQuarter(lang, candidate, edition, () => {
           doneDays += 1;
           setSyncProgress({ current: doneDays, total: totalDays, label: `Downloading ${candidate}…` });
@@ -305,6 +324,12 @@ export function syncSpecificQuarter(
           await saveQuarter(db, quarter);
           return { synced: true, code: candidate };
         }
+        // Whether this candidate failed at the info.yml stage (nothing fetched yet) or
+        // partway through its days, count its whole slice as "checked" now so the bar
+        // keeps moving candidate-to-candidate instead of sitting frozen at 0% while
+        // several quarters in a row turn out not to be published for this division/
+        // language yet — it should visibly climb even before any real download starts.
+        doneDays = (i + 1) * daysPerCandidate;
         candidate = shiftQuarter(candidate, -1);
       }
       return { synced: false, reason: 'Not available for this language/edition yet' };

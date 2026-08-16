@@ -117,6 +117,7 @@ export const Pencil = makeIcon('pencil');
 export const Pin = makeFA5Icon('thumbtack');
 export const Play = makeIcon('play-circle', 'play-circle-outline');
 export const Plus = makeIcon('add');
+export const RefreshCw = makeIcon('refresh');
 export const Search = makeIcon('search');
 export const Settings = makeIcon('settings');
 export const SkipBack = makeIcon('play-skip-back');

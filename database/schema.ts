@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 18;
+export const SCHEMA_VERSION = 19;
 
 export const CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS bible (
@@ -163,6 +163,21 @@ CREATE TABLE IF NOT EXISTS sabbath_highlights (
   end_word INTEGER NOT NULL DEFAULT -1,
   color TEXT NOT NULL,
   created_date TEXT NOT NULL
+);
+
+-- Some Sabbath School age divisions (Cornerstone Connections, Junior PowerPoints) are only
+-- published as PDFs on their own official sites, not as the day-by-day text format
+-- sabbath_quarters holds — see services/sabbathPdfSync.ts. id is "{division}:{code}"
+-- (division is the SabbathAgeDivision suffix, e.g. "-cc"); files is a JSON array of
+-- { label, isTeacher, uri } for every PDF downloaded for that division/quarter.
+CREATE TABLE IF NOT EXISTS sabbath_pdf_lessons (
+  id TEXT PRIMARY KEY NOT NULL,
+  division TEXT NOT NULL,
+  code TEXT NOT NULL,
+  title TEXT NOT NULL,
+  human_date TEXT NOT NULL,
+  files TEXT NOT NULL,
+  downloaded_at TEXT NOT NULL
 );
 
 -- Full-text index the AI Assistant searches for grounding answers (Bible, EGW books,

@@ -35,11 +35,10 @@ export default function EgwBookListScreen() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.md,
-                borderWidth: 1,
-                borderColor: theme.colors.border,
+                borderRadius: theme.radius.lg,
                 paddingHorizontal: theme.spacing.sm,
                 marginBottom: theme.spacing.md,
+                ...theme.shadow.subtle,
               }}
             >
               <Search size={16} color={theme.colors.textFaint} />
@@ -74,11 +73,10 @@ export default function EgwBookListScreen() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.md,
-                borderWidth: 1,
-                borderColor: theme.colors.border,
+                borderRadius: theme.radius.lg,
                 padding: theme.spacing.md,
                 marginBottom: theme.spacing.sm,
+                ...theme.shadow.subtle,
               }}
             >
               <BookMarked size={18} color={theme.colors.primary} strokeWidth={1.75} />

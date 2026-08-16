@@ -25,6 +25,13 @@ export const motion = {
 };
 
 export const shadow = {
+  subtle: {
+    shadowColor: '#3B0F6B',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
   card: {
     shadowColor: '#3B0F6B',
     shadowOpacity: 0.12,

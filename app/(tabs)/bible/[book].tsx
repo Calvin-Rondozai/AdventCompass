@@ -55,9 +55,8 @@ export default function BookChaptersScreen() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.md,
-                borderWidth: 1,
-                borderColor: theme.colors.border,
+                borderRadius: theme.radius.lg,
+                ...theme.shadow.subtle,
               }}
             >
               <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{item}</Body>

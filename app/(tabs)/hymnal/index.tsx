@@ -21,10 +21,9 @@ export default function HymnalLanguagesScreen() {
               flexDirection: 'row',
               alignItems: 'center',
               backgroundColor: theme.colors.surface,
-              borderRadius: theme.radius.md,
-              borderWidth: 1,
-              borderColor: theme.colors.border,
+              borderRadius: theme.radius.lg,
               padding: theme.spacing.md,
+              ...theme.shadow.subtle,
             }}
           >
             <View
@@ -58,10 +57,9 @@ export default function HymnalLanguagesScreen() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.md,
-                borderWidth: 1,
-                borderColor: theme.colors.border,
+                borderRadius: theme.radius.lg,
                 padding: theme.spacing.md,
+                ...theme.shadow.subtle,
               }}
             >
               <View

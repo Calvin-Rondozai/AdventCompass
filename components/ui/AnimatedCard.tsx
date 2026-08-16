@@ -21,10 +21,8 @@ export function AnimatedCard({ children, delay = 0, style }: Props) {
         {
           backgroundColor: theme.colors.surface,
           borderRadius: theme.radius.lg,
-          borderWidth: 1,
-          borderColor: theme.colors.border,
           padding: theme.spacing.md,
-          ...theme.shadow.card,
+          ...theme.shadow.subtle,
         },
         style,
       ]}

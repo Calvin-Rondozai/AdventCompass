@@ -29,7 +29,7 @@ exists and where, not a changelog of every edit.
 | Ellen G. White books (~40 titles) | `app/(tabs)/more/egw*` | `database/egwBooks.ts` |
 | Hymnal (English/chiShona/isiNdebele) | `app/(tabs)/hymnal*` | `database/hymnal.ts` |
 | Fundamental Beliefs (28) | `app/(tabs)/more/beliefs*` | `database/fundamentalBeliefs.ts` |
-| Sabbath School lessons (auto-synced; English/chiShona, standard/Easy Reading) | `app/(tabs)/more/sabbath-school*` | `database/sabbathSchool.ts`, `services/sabbathSchoolSync.ts` |
+| Sabbath School lessons (auto-synced; English/chiShona, standard/Easy Reading/InVerse text; Cornerstone Connections/Junior PowerPoints as PDFs) | `app/(tabs)/more/sabbath-school*` | `database/sabbathSchool.ts`, `services/sabbathSchoolSync.ts`, `services/sabbathPdfSync.ts` |
 | Devotionals | `app/(tabs)/more/devotional.tsx` | `database/devotionals.ts` |
 | Offertory readings | `app/(tabs)/more/offertory.tsx` | `database/offertory.ts` |
 | Reading plans (preset + custom) | `app/(tabs)/more/reading-plans*` | `database/customReadingPlans.ts` |
@@ -61,6 +61,19 @@ exists and where, not a changelog of every edit.
   written authorization for reproduction**, separate from that repo's MIT license. This
   app only caches it locally for the app owner's own offline reading; that restriction
   should be kept in mind if this app is ever distributed beyond personal use.
+  - **Cornerstone Connections (Earliteen) and Junior PowerPoints (Junior)**: that repo
+    only links their PDFs from a private S3 bucket (403s on direct access) — the actual
+    PDFs are instead downloaded from each division's own official site
+    (`cornerstoneconnections.net`, `juniorpowerpoints.org`), which serves the current
+    quarter's Student and Teacher's Guide PDFs publicly, no auth. Footer confirms the
+    same copyright holder: "Copyright © 2025 General Conference Corporation of
+    Seventh-day Adventists" — same personal-use-only basis as the text lessons above.
+  - **Real Time Faith (Youth)**: left out entirely. That repo's quarter folders for it
+    are PDF-only too (no public S3 access, same as the two above), but its own official
+    site (`realtimefaith.net`) sits behind a Cloudflare bot-challenge that blocks even a
+    plain fetch — not pursued further (would mean solving/bypassing that challenge,
+    which wasn't attempted). Revisit only if a legitimate way to reach that content
+    surfaces.
 - **Fundamental Beliefs**: parsed from the GC's own 28 Fundamental Beliefs PDF (2015
   edition), in the user's library.
 - **Children's Sermons**: sourced from Haverhill SDA Church's public children's-sermon

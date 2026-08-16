@@ -92,11 +92,10 @@ export default function PrayerListScreen() {
                   flexDirection: 'row',
                   alignItems: 'flex-start',
                   backgroundColor: theme.colors.surface,
-                  borderRadius: theme.radius.md,
-                  borderWidth: 1,
-                  borderColor: theme.colors.border,
+                  borderRadius: theme.radius.lg,
                   padding: theme.spacing.md,
                   marginBottom: theme.spacing.sm,
+                  ...theme.shadow.subtle,
                 }}
               >
                 <View style={{ flex: 1 }}>

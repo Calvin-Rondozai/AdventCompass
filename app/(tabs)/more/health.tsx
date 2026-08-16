@@ -285,10 +285,9 @@ export default function HealthScreen() {
               keyboardType="number-pad"
               style={{
                 backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.md,
-                borderWidth: 1,
-                borderColor: theme.colors.border,
+                borderRadius: theme.radius.lg,
                 padding: theme.spacing.sm + 2,
+                ...theme.shadow.subtle,
                 color: theme.colors.text,
                 fontSize: theme.fontSize.lg,
               }}

@@ -93,11 +93,10 @@ export default function BookmarksScreen() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.md,
-                borderWidth: 1,
-                borderColor: theme.colors.border,
+                borderRadius: theme.radius.lg,
                 padding: theme.spacing.md,
                 marginBottom: theme.spacing.sm,
+                ...theme.shadow.subtle,
               }}
             >
               {item.bookmarked && (

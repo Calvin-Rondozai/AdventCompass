@@ -37,6 +37,7 @@ export default function MoreStackLayout() {
       <Stack.Screen name="sabbath-school" options={{ title: 'Sabbath School' }} />
       <Stack.Screen name="sabbath-school/[id]" options={{ title: '' }} />
       <Stack.Screen name="sabbath-school/[id]/[week]" options={{ title: '' }} />
+      <Stack.Screen name="sabbath-school/pdf/[id]" options={{ title: '' }} />
       <Stack.Screen name="topical-verses" options={{ title: 'Topical Verses' }} />
       <Stack.Screen name="topical-verses/[topic]" options={{ title: '' }} />
       <Stack.Screen name="childrens-sermons" options={{ title: "Children's Sermons" }} />

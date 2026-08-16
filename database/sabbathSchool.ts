@@ -41,6 +41,35 @@ export const SABBATH_EDITIONS: { code: string; label: string; suffix: string }[]
   { code: 'easy', label: 'Easy Reading Edition', suffix: '-er' },
 ];
 
+// The Adventech content repo hosts a lesson quarterly per age division, not just the Adult
+// one — but only some divisions actually publish the day-by-day markdown format this app's
+// sync/reader is built around (verified live against the repo: src/en/2026-03-{suffix}/).
+// InVerse has real 01-13 week folders full of day .md files, same shape as Adult — synced as
+// `format: 'text'` via services/sabbathSchoolSync.ts. Cornerstone Connections and Junior
+// PowerPoints do NOT — their quarter folders in that repo contain only PDFs, and the PDF
+// URLs listed there (pdf.yml) point at a private S3 bucket that 403s on direct access. Both
+// divisions DO publish those same PDFs publicly on their own official sites though (verified
+// live), so they're synced as `format: 'pdf'` instead, via services/sabbathPdfSync.ts. Real
+// Time Faith's own site sits behind a Cloudflare bot-challenge that blocks even a plain
+// fetch, so it's left out entirely for now. Primary/Kindergarten/Beginner are left out for a
+// separate reason — their folder names are namespaced to the current curriculum cycle (e.g.
+// "yaijprtg") rather than a fixed suffix, so there's no stable suffix to hardcode here.
+export type SabbathAgeDivision = {
+  suffix: string;
+  label: string;
+  ageGroup: string;
+  description: string;
+  format: 'text' | 'pdf';
+};
+
+export const SABBATH_AGE_DIVISIONS: SabbathAgeDivision[] = [
+  { suffix: '', label: 'Standard Edition', ageGroup: 'Adult', description: 'The classic Sabbath School Bible Study Guide', format: 'text' },
+  { suffix: '-er', label: 'Easy Reading Edition', ageGroup: 'Adult', description: 'The same weekly lessons, in simpler language', format: 'text' },
+  { suffix: '-cq', label: 'InVerse', ageGroup: 'Young Adult', description: 'Apologetics and discussion for young adults', format: 'text' },
+  { suffix: '-cc', label: 'Cornerstone Connections', ageGroup: 'Earliteen', description: 'For ages 10-14 — downloaded as PDFs', format: 'pdf' },
+  { suffix: '-pp', label: 'Junior PowerPoints', ageGroup: 'Junior', description: 'For ages 10-12 — downloaded as PDFs', format: 'pdf' },
+];
+
 export function quarterVariantId(lang: string, code: string, edition: string): string {
   return `${lang}:${code}:${edition}`;
 }

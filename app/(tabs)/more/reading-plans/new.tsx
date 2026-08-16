@@ -62,10 +62,9 @@ export default function NewReadingPlanScreen() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.md,
-                borderWidth: 1,
-                borderColor: theme.colors.border,
+                borderRadius: theme.radius.lg,
                 paddingHorizontal: theme.spacing.sm,
+                ...theme.shadow.subtle,
               }}
             >
               <SearchIcon size={16} color={theme.colors.textFaint} />
@@ -93,11 +92,10 @@ export default function NewReadingPlanScreen() {
                       flexDirection: 'row',
                       justifyContent: 'space-between',
                       padding: theme.spacing.sm + 2,
-                      borderRadius: theme.radius.md,
+                      borderRadius: theme.radius.lg,
                       backgroundColor: theme.colors.surface,
-                      borderWidth: 1,
-                      borderColor: theme.colors.border,
                       marginBottom: theme.spacing.xs,
+                      ...theme.shadow.subtle,
                     }}
                   >
                     <Body>{item.name}</Body>
@@ -134,11 +132,10 @@ export default function NewReadingPlanScreen() {
                   keyboardType="number-pad"
                   style={{
                     backgroundColor: theme.colors.surface,
-                    borderRadius: theme.radius.md,
-                    borderWidth: 1,
-                    borderColor: theme.colors.border,
+                    borderRadius: theme.radius.lg,
                     padding: theme.spacing.sm + 2,
                     color: theme.colors.text,
+                    ...theme.shadow.subtle,
                   }}
                 />
               </View>
@@ -152,11 +149,10 @@ export default function NewReadingPlanScreen() {
                   placeholderTextColor={theme.colors.textFaint}
                   style={{
                     backgroundColor: theme.colors.surface,
-                    borderRadius: theme.radius.md,
-                    borderWidth: 1,
-                    borderColor: theme.colors.border,
+                    borderRadius: theme.radius.lg,
                     padding: theme.spacing.sm + 2,
                     color: theme.colors.text,
+                    ...theme.shadow.subtle,
                   }}
                 />
               </View>
@@ -172,11 +168,10 @@ export default function NewReadingPlanScreen() {
                 placeholderTextColor={theme.colors.textFaint}
                 style={{
                   backgroundColor: theme.colors.surface,
-                  borderRadius: theme.radius.md,
-                  borderWidth: 1,
-                  borderColor: theme.colors.border,
+                  borderRadius: theme.radius.lg,
                   padding: theme.spacing.sm + 2,
                   color: theme.colors.text,
+                  ...theme.shadow.subtle,
                 }}
               />
             </View>

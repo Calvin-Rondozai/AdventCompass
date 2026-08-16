@@ -137,10 +137,9 @@ export default function NotesListScreen() {
         <View
           style={{
             backgroundColor: cardBg,
-            borderRadius: theme.radius.md,
-            borderWidth: item.color ? 0 : 1,
-            borderColor: theme.colors.border,
+            borderRadius: theme.radius.lg,
             overflow: 'hidden',
+            ...theme.shadow.subtle,
           }}
         >
           {!!item.image_uri && (
@@ -225,10 +224,9 @@ export default function NotesListScreen() {
             flexDirection: 'row',
             alignItems: 'center',
             backgroundColor: theme.colors.surface,
-            borderRadius: theme.radius.md,
-            borderWidth: 1,
-            borderColor: theme.colors.border,
+            borderRadius: theme.radius.lg,
             paddingHorizontal: theme.spacing.sm,
+            ...theme.shadow.subtle,
           }}
         >
           <SearchIcon size={18} color={theme.colors.textFaint} />

@@ -50,11 +50,10 @@ export default function ReadingPlansScreen() {
           flexDirection: 'row',
           alignItems: 'center',
           backgroundColor: theme.colors.surface,
-          borderRadius: theme.radius.md,
-          borderWidth: 1,
-          borderColor: selected ? theme.colors.primary : theme.colors.border,
+          borderRadius: theme.radius.lg,
           padding: theme.spacing.md,
           marginBottom: theme.spacing.sm,
+          ...theme.shadow.subtle,
         }}
       >
         <PressableScale
@@ -123,11 +122,10 @@ export default function ReadingPlansScreen() {
               flexDirection: 'row',
               alignItems: 'center',
               backgroundColor: theme.colors.surface,
-              borderRadius: theme.radius.md,
-              borderWidth: 1,
-              borderColor: activeId === null ? theme.colors.primary : theme.colors.border,
+              borderRadius: theme.radius.lg,
               padding: theme.spacing.md,
               marginBottom: theme.spacing.md,
+              ...theme.shadow.subtle,
             }}
           >
             <View

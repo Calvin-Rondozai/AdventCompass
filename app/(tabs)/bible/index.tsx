@@ -105,10 +105,9 @@ export default function BibleBooksScreen() {
                 paddingVertical: theme.spacing.sm + 2,
                 paddingHorizontal: theme.spacing.md,
                 backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.md,
-                borderWidth: 1,
-                borderColor: theme.colors.border,
+                borderRadius: theme.radius.lg,
                 marginBottom: theme.spacing.xs + 2,
+                ...theme.shadow.subtle,
               }}
             >
               <Body style={{ flex: 1 }}>{getLocalizedBookName(translation, item.name)}</Body>

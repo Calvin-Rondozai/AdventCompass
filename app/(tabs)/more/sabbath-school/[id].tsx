@@ -44,11 +44,10 @@ export default function SabbathQuarterLessonsScreen() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.md,
-                borderWidth: 1,
-                borderColor: theme.colors.border,
+                borderRadius: theme.radius.lg,
                 padding: theme.spacing.md,
                 marginBottom: theme.spacing.xs + 2,
+                ...theme.shadow.subtle,
               }}
             >
               <Label style={{ width: 32 }}>{item.week}</Label>

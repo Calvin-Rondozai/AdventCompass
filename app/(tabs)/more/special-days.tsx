@@ -63,11 +63,10 @@ export default function SpecialDaysScreen() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.md,
-                borderWidth: 1,
-                borderColor: isSoon ? theme.colors.primary : theme.colors.border,
+                borderRadius: theme.radius.lg,
                 padding: theme.spacing.md,
                 marginBottom: theme.spacing.sm,
+                ...theme.shadow.subtle,
               }}
             >
               <View
@@ -75,12 +74,12 @@ export default function SpecialDaysScreen() {
                   width: 40,
                   height: 40,
                   borderRadius: theme.radius.sm,
-                  backgroundColor: theme.colors.primarySoft,
+                  backgroundColor: isSoon ? theme.colors.primary : theme.colors.primarySoft,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <CalendarDays size={18} color={theme.colors.primary} strokeWidth={1.75} />
+                <CalendarDays size={18} color={isSoon ? (theme.colors.onPrimary ?? '#fff') : theme.colors.primary} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
                 <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{item.title}</Body>
