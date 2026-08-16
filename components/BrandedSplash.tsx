@@ -14,7 +14,7 @@ const MARK_ASPECT_RATIO = 900 / 480;
 // scripts/make_splash_icon_square.py. Because Android ultimately decides the final
 // on-screen icon container size itself (not something this app controls precisely), this
 // constant is a best-effort reference point rather than a guaranteed exact match.
-const NATIVE_SPLASH_MARK_WIDTH = 280;
+const NATIVE_SPLASH_MARK_WIDTH = 320;
 
 // This component's own version of the mark is shown deliberately a bit larger than the
 // native splash icon it hands off from, once it's had a beat to establish continuity.

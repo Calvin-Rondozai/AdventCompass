@@ -14,7 +14,7 @@ from PIL import Image
 SRC = "assets/splash-mark.png"
 OUT = "assets/splash-mark-square.png"
 CANVAS = 1024
-CONTENT_WIDTH_FRACTION = 0.55
+CONTENT_WIDTH_FRACTION = 0.72
 
 src = Image.open(SRC).convert("RGBA")
 aspect = src.height / src.width  # source is wider than tall
