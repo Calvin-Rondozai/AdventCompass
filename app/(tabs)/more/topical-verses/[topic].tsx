@@ -52,7 +52,7 @@ export default function TopicalVerseListScreen() {
         data={resolved}
         keyExtractor={(item, i) => `${item.book}-${item.chapter}-${item.verseStart}-${i}`}
         contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <PressableScale
             onPress={() =>
               router.push({
@@ -64,11 +64,9 @@ export default function TopicalVerseListScreen() {
           >
             <View
               style={{
-                backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.lg,
-                padding: theme.spacing.md,
-                marginBottom: theme.spacing.sm,
-                ...theme.shadow.subtle,
+                paddingVertical: theme.spacing.md,
+                borderBottomWidth: index === resolved.length - 1 ? 0 : 1,
+                borderBottomColor: theme.colors.border,
               }}
             >
               <Label style={{ color: theme.colors.primary, marginBottom: 4 }}>

@@ -4,7 +4,7 @@
     "slug": "maranatha-one",
     "owner": "rondozaicalvin",
     "scheme": "maranathaone",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -33,12 +33,13 @@
       "expo-video",
       "expo-secure-store",
       "expo-font",
+      "expo-file-system",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#25516C",
+          "backgroundColor": "#1A3449",
           "image": "./assets/splash-mark-square.png",
-          "imageWidth": 445
+          "imageWidth": 320
         }
       ],
       [

@@ -22,7 +22,7 @@ export function getTimeOfDay(date: Date = new Date()): TimeOfDay {
 export function getTimeGreeting(date: Date = new Date()): string {
   switch (getTimeOfDay(date)) {
     case 'night':
-      return 'Good Night';
+      return 'Good Evening';
     case 'morning':
       return 'Good Morning';
     case 'afternoon':

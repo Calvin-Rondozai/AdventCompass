@@ -62,25 +62,12 @@ export default function SpecialDaysScreen() {
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.lg,
-                padding: theme.spacing.md,
-                marginBottom: theme.spacing.sm,
-                ...theme.shadow.subtle,
+                paddingVertical: theme.spacing.md,
+                borderBottomWidth: 1,
+                borderBottomColor: theme.colors.border,
               }}
             >
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: theme.radius.sm,
-                  backgroundColor: isSoon ? theme.colors.primary : theme.colors.primarySoft,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <CalendarDays size={18} color={isSoon ? (theme.colors.onPrimary ?? '#fff') : theme.colors.primary} strokeWidth={1.75} />
-              </View>
+              <CalendarDays size={24} color={isSoon ? theme.colors.primary : theme.colors.textFaint} strokeWidth={1.75} />
               <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
                 <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{item.title}</Body>
                 <Label style={{ marginTop: 2 }}>

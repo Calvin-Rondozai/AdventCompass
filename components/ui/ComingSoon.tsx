@@ -17,16 +17,8 @@ export function ComingSoon({ Icon, title, description }: { Icon: IconComponent; 
           from={{ opacity: 0, scale: 0.85 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ type: 'timing', duration: theme.motion.slow }}
-          style={{
-            width: 88,
-            height: 88,
-            borderRadius: theme.radius.xl,
-            backgroundColor: theme.colors.primarySoft,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
         >
-          <Icon size={36} color={theme.colors.primary} strokeWidth={1.75} />
+          <Icon size={64} color={theme.colors.primary} strokeWidth={1.5} />
         </MotiView>
         <Heading style={{ textAlign: 'center' }}>{title}</Heading>
         <Body style={{ textAlign: 'center', color: theme.colors.textMuted }}>{description}</Body>

@@ -501,13 +501,31 @@ export default function AIAssistantScreen() {
   };
 
   const handleImport = async () => {
+    let picked: File;
     try {
       // GGUF has no registered MIME type, so this can't usefully filter by type —
       // importModel() rejects anything whose filename doesn't end in .gguf instead.
-      const picked = await File.pickFileAsync();
-      if (picked.canceled) return;
+      //
+      // Deliberately using the deprecated (initialUri, mimeType) positional overload
+      // instead of File.pickFileAsync() with no args or an options object: expo-file-system's
+      // wrapper (node_modules/expo-file-system/src/File.ts) catches EVERY exception the
+      // native picker can throw — a real cancel, but also permission denial, no matching
+      // picker activity, an SAF failure, anything — and collapses them all into the same
+      // `{ result: null, canceled: true }`, indistinguishable from a clean cancel. Only the
+      // deprecated overload re-throws the real error instead of swallowing it, which is the
+      // only way from JS to tell "user cancelled" apart from "picking actually failed" — the
+      // difference between silently doing nothing (correct for a cancel) and telling the user
+      // what went wrong (what "failing to import" without any feedback looked like before).
+      picked = (await File.pickFileAsync(undefined, '*/*')) as File;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/cancel/i.test(message)) return; // genuine user cancellation — nothing to report
+      showAlert('Import failed', "Couldn't open the file picker. Please try again.");
+      return;
+    }
+    try {
       setImporting(true);
-      await importModel(db, picked.result);
+      await importModel(db, picked);
       refreshModelInfo();
     } catch (error) {
       showAlert('Import failed', error instanceof Error ? error.message : "Couldn't import that file.");

@@ -36,19 +36,12 @@ import { AudioPlayerProvider } from '@/contexts/AudioPlayerProvider';
 import { syncSabbathSchool } from '@/services/sabbathSchoolSync';
 import { ensureNotificationSetup, refreshSabbathSchoolReminder, scheduleSpecialDayNotifications } from '@/services/notifications';
 import { AppAlertHost } from '@/components/ui/AppAlert';
-import { BrandedSplash } from '@/components/BrandedSplash';
 // Registers the foreground notification handler on every launch — reminders are
 // scheduled with the OS and survive restarts, but this in-memory handler config
 // (how a notification behaves while the app is open) must be set up each session.
 import '@/services/notifications';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
-
-// The branded splash (logo + "AdventCompass" + "Powered by Hello C") is shown for at
-// least this long regardless of how fast the app actually finishes loading — without a
-// floor, a warm-cached launch could finish in a few hundred ms and the brand moment
-// would barely register before snapping to the home tab.
-const MIN_SPLASH_MS = 2000;
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -63,36 +56,18 @@ export default function RootLayout() {
     Raleway_700Bold,
   });
   const [dbReady, setDbReady] = useState(false);
-  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+
+  const appReady = fontsLoaded && dbReady;
 
   // Hides the native OS splash (Android 12+'s SplashScreen API — icon + background
-  // color only, see android/app/src/main/res/values/styles.xml) once fonts are ready,
-  // immediately replaced by the BrandedSplash overlay below (both use the exact same
-  // background color, so the handoff is imperceptible). Gated on fontsLoaded — NOT
-  // called unconditionally on mount — on purpose: that first version raced ahead of
-  // React Native's actual native paint. useEffect fires once React has committed the
-  // update, but "committed" and "actually drawn to the screen" aren't the same instant
-  // on the native side, and calling hideAsync() before BrandedSplash has genuinely
-  // painted could reveal a blank native background instead of a clean handoff. Waiting
-  // for fontsLoaded costs nothing (still well before dbReady/minTimeElapsed) and
-  // guarantees at least one real render cycle has happened first.
+  // color only, see android/app/src/main/res/values/styles.xml) once the app is fully
+  // ready to render (fonts loaded AND the db/onboarding-route check in RootReady has
+  // settled) — there's no more JS-rendered branded overlay to hand off to, so the native
+  // splash just stays up for the whole loading window instead.
   useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});
-  }, [fontsLoaded]);
+    if (appReady) SplashScreen.hideAsync().catch(() => {});
+  }, [appReady]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setMinTimeElapsed(true), MIN_SPLASH_MS);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const appReady = fontsLoaded && dbReady && minTimeElapsed;
-
-  // GestureHandlerRootView/SafeAreaProvider always render, fonts-loaded or not —
-  // BrandedSplash needs react-native-safe-area-context's provider to position its
-  // tagline off the real screen edge (see useSafeAreaInsets in that component), so it
-  // can't be returned as an early, unwrapped `if (!fontsLoaded) return <BrandedSplash/>`
-  // the way the image-only version could. The rest of the tree only mounts once fonts
-  // are ready (unchanged from before); until then this renders as just the overlay.
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
@@ -111,7 +86,6 @@ export default function RootLayout() {
             </ThemeProvider>
           </SQLiteProvider>
         )}
-        {!appReady && <BrandedSplash />}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

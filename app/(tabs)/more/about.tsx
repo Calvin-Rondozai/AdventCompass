@@ -6,7 +6,6 @@ import { ChevronRight, Mail, User } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { PressableScale } from '@/components/ui/PressableScale';
-import { AnimatedCard } from '@/components/ui/AnimatedCard';
 import { Body, Heading, Label } from '@/components/ui/Typography';
 
 const CONTACT_EMAIL = 'rondozaicalvin@gmail.com';
@@ -35,7 +34,7 @@ export default function AboutScreen() {
             <Label style={{ marginTop: 4 }}>Version {version}</Label>
           </View>
 
-          <AnimatedCard style={{ padding: 0, overflow: 'hidden' }}>
+          <View>
             {rows.map((row, i) => (
               <PressableScale key={row.label} onPress={row.onPress} disabled={!row.onPress} scaleTo={0.99}>
                 <View
@@ -43,12 +42,11 @@ export default function AboutScreen() {
                     flexDirection: 'row',
                     alignItems: 'center',
                     paddingVertical: theme.spacing.sm + 4,
-                    paddingHorizontal: theme.spacing.md,
                     borderTopWidth: i === 0 ? 0 : 1,
                     borderTopColor: theme.colors.border,
                   }}
                 >
-                  <row.icon size={18} color={theme.colors.primary} strokeWidth={1.75} />
+                  <row.icon size={22} color={theme.colors.primary} strokeWidth={1.75} />
                   <View style={{ flex: 1, marginLeft: theme.spacing.sm }}>
                     <Label>{row.label}</Label>
                     <Body style={{ marginTop: 1, color: row.onPress ? theme.colors.primary : theme.colors.text }}>
@@ -59,7 +57,7 @@ export default function AboutScreen() {
                 </View>
               </PressableScale>
             ))}
-          </AnimatedCard>
+          </View>
         </View>
 
         <Label style={{ textAlign: 'center', marginBottom: theme.spacing.md }}>

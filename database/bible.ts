@@ -100,6 +100,23 @@ export async function getChapterVerses(
   return rows;
 }
 
+// Lightweight COUNT(*) rather than reusing getChapterVerses — the VERSE-picker grid only
+// needs a number, and shouldn't pull (and cache) full verse text just to size a grid.
+export async function getChapterVerseCount(
+  db: SQLiteDatabase,
+  translation: string,
+  book: string,
+  chapter: number
+): Promise<number> {
+  const { count } = (await db.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM bible WHERE translation = ? AND book = ? AND chapter = ?',
+    translation,
+    book,
+    chapter
+  )) ?? { count: 0 };
+  return count;
+}
+
 export async function getVerseRange(
   db: SQLiteDatabase,
   translation: string,

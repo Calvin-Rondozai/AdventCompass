@@ -80,7 +80,7 @@ export default function PrayerListScreen() {
             </Body>
           </View>
         }
-        renderItem={({ item }) => {
+        renderItem={({ item, index }) => {
           const isAnswered = item.status === 'answered';
           return (
             <PressableScale
@@ -91,11 +91,9 @@ export default function PrayerListScreen() {
                 style={{
                   flexDirection: 'row',
                   alignItems: 'flex-start',
-                  backgroundColor: theme.colors.surface,
-                  borderRadius: theme.radius.lg,
-                  padding: theme.spacing.md,
-                  marginBottom: theme.spacing.sm,
-                  ...theme.shadow.subtle,
+                  paddingVertical: theme.spacing.md,
+                  borderBottomWidth: index === prayers.length - 1 ? 0 : 1,
+                  borderBottomColor: theme.colors.border,
                 }}
               >
                 <View style={{ flex: 1 }}>

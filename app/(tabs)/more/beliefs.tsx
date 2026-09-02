@@ -64,7 +64,7 @@ export default function BeliefsListScreen() {
             No beliefs match "{query}".
           </Body>
         }
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <PressableScale
             onPress={() => router.push({ pathname: '/more/beliefs/[number]', params: { number: String(item.number) } })}
             scaleTo={0.99}
@@ -73,11 +73,9 @@ export default function BeliefsListScreen() {
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.lg,
-                padding: theme.spacing.md,
-                marginBottom: theme.spacing.xs + 2,
-                ...theme.shadow.subtle,
+                paddingVertical: theme.spacing.sm + 2,
+                borderBottomWidth: index === beliefs.length - 1 ? 0 : 1,
+                borderBottomColor: theme.colors.border,
               }}
             >
               <Label style={{ width: 28 }}>{item.number}</Label>

@@ -63,15 +63,13 @@ export default function ChildrensSermonsListScreen() {
             No sermons match "{query}".
           </Body>
         }
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <PressableScale onPress={() => router.push({ pathname: '/more/childrens-sermons/[id]', params: { id: item.id } })} scaleTo={0.99}>
             <View
               style={{
-                backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.lg,
-                padding: theme.spacing.md,
-                marginBottom: theme.spacing.xs + 2,
-                ...theme.shadow.subtle,
+                paddingVertical: theme.spacing.sm + 2,
+                borderBottomWidth: index === sermons.length - 1 ? 0 : 1,
+                borderBottomColor: theme.colors.border,
               }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>

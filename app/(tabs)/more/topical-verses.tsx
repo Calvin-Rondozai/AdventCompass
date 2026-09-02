@@ -23,32 +23,19 @@ export default function TopicalVersesScreen() {
             Pick how you're feeling or what you're facing to find Scripture that speaks to it.
           </Body>
         }
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <PressableScale onPress={() => router.push({ pathname: '/more/topical-verses/[topic]', params: { topic: item.key } })} scaleTo={0.99}>
             <View
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.lg,
-                padding: theme.spacing.md,
-                marginBottom: theme.spacing.sm,
-                ...theme.shadow.subtle,
+                paddingVertical: theme.spacing.md,
+                borderBottomWidth: index === TOPICS.length - 1 ? 0 : 1,
+                borderBottomColor: theme.colors.border,
               }}
             >
-              <View
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: theme.radius.sm,
-                  backgroundColor: theme.colors.accentSoft,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Heart size={16} color={theme.colors.accent} strokeWidth={1.75} />
-              </View>
-              <Body style={{ flex: 1, marginLeft: theme.spacing.sm, fontFamily: theme.fontFamily.sansSemiBold }}>
+              <Heart size={22} color={theme.colors.accent} strokeWidth={1.75} />
+              <Body style={{ flex: 1, marginLeft: theme.spacing.md, fontFamily: theme.fontFamily.sansSemiBold }}>
                 {item.label}
               </Body>
               <Label style={{ marginRight: theme.spacing.xs }}>{item.verses.length}</Label>

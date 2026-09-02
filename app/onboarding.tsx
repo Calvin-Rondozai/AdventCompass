@@ -69,18 +69,7 @@ export default function OnboardingScreen() {
             <View style={{ gap: theme.spacing.xs + 4 }}>
               {FEATURES.map(({ Icon, label }) => (
                 <View key={label} style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: theme.radius.sm,
-                      backgroundColor: theme.colors.primarySoft,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Icon size={15} color={theme.colors.primary} strokeWidth={1.75} />
-                  </View>
+                  <Icon size={20} color={theme.colors.primary} strokeWidth={1.75} />
                   <Body style={{ flex: 1, marginLeft: theme.spacing.sm, fontSize: theme.fontSize.sm }}>{label}</Body>
                 </View>
               ))}
@@ -97,18 +86,7 @@ export default function OnboardingScreen() {
             <View style={{ gap: theme.spacing.md }}>
               {AI_HIGHLIGHTS.map(({ Icon, label }) => (
                 <View key={label} style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View
-                    style={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: theme.radius.sm,
-                      backgroundColor: theme.colors.primarySoft,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Icon size={17} color={theme.colors.primary} strokeWidth={1.75} />
-                  </View>
+                  <Icon size={24} color={theme.colors.primary} strokeWidth={1.75} />
                   <Body style={{ flex: 1, marginLeft: theme.spacing.sm, fontSize: theme.fontSize.sm }}>{label}</Body>
                 </View>
               ))}

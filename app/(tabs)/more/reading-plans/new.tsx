@@ -85,17 +85,15 @@ export default function NewReadingPlanScreen() {
             <FlatList
               data={matchingBooks}
               keyExtractor={(b) => b.name}
-              renderItem={({ item }) => (
+              renderItem={({ item, index }) => (
                 <PressableScale onPress={() => setBook(item.name)} scaleTo={0.99}>
                   <View
                     style={{
                       flexDirection: 'row',
                       justifyContent: 'space-between',
-                      padding: theme.spacing.sm + 2,
-                      borderRadius: theme.radius.lg,
-                      backgroundColor: theme.colors.surface,
-                      marginBottom: theme.spacing.xs,
-                      ...theme.shadow.subtle,
+                      paddingVertical: theme.spacing.sm + 2,
+                      borderBottomWidth: index === matchingBooks.length - 1 ? 0 : 1,
+                      borderBottomColor: theme.colors.border,
                     }}
                   >
                     <Body>{item.name}</Body>

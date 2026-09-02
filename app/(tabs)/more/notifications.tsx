@@ -15,7 +15,6 @@ import {
 } from '@/services/notifications';
 import { showAlert } from '@/components/ui/AppAlert';
 import { PressableScale } from '@/components/ui/PressableScale';
-import { AnimatedCard } from '@/components/ui/AnimatedCard';
 import { Body, Heading, Label } from '@/components/ui/Typography';
 
 const INTERVAL_PRESETS = [15, 30, 45, 60, 90, 120];
@@ -126,10 +125,17 @@ export default function NotificationsScreen() {
             </Body>
           </View>
         )}
-        {reminders.map((reminder) => {
+        {reminders.map((reminder, i) => {
           const def = REMINDER_DEFS.find((d) => d.type === reminder.type)!;
           return (
-            <AnimatedCard key={reminder.type}>
+            <View
+              key={reminder.type}
+              style={{
+                paddingVertical: theme.spacing.sm + 2,
+                borderTopWidth: i === 0 ? 0 : 1,
+                borderTopColor: theme.colors.border,
+              }}
+            >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <View style={{ flex: 1 }}>
                   <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{def.label}</Body>
@@ -161,7 +167,7 @@ export default function NotificationsScreen() {
                   thumbColor={reminder.enabled ? theme.colors.onPrimary : theme.colors.surfaceElevated}
                 />
               </View>
-            </AnimatedCard>
+            </View>
           );
         })}
       </ScrollView>

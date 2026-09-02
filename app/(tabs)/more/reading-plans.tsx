@@ -49,11 +49,9 @@ export default function ReadingPlansScreen() {
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          backgroundColor: theme.colors.surface,
-          borderRadius: theme.radius.lg,
-          padding: theme.spacing.md,
-          marginBottom: theme.spacing.sm,
-          ...theme.shadow.subtle,
+          paddingVertical: theme.spacing.md,
+          borderBottomWidth: 1,
+          borderBottomColor: theme.colors.border,
         }}
       >
         <PressableScale
@@ -62,18 +60,7 @@ export default function ReadingPlansScreen() {
           style={{ flex: 1 }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: theme.radius.sm,
-                backgroundColor: theme.colors.primarySoft,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <BookOpen size={18} color={theme.colors.primary} strokeWidth={1.75} />
-            </View>
+            <BookOpen size={24} color={theme.colors.primary} strokeWidth={1.75} />
             <View style={{ flex: 1, marginLeft: theme.spacing.md, marginRight: theme.spacing.sm }}>
               <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }} numberOfLines={1}>
                 {plan.title}
@@ -82,7 +69,7 @@ export default function ReadingPlansScreen() {
                 {plan.description}
               </Label>
             </View>
-            <ChevronRight size={18} color={theme.colors.textFaint} />
+            <ChevronRight size={16} color={theme.colors.textFaint} />
           </View>
         </PressableScale>
         <PressableScale onPress={() => selectAsVerseSource(plan.id)} scaleTo={0.85} style={{ paddingLeft: theme.spacing.sm }}>
@@ -121,25 +108,13 @@ export default function ReadingPlansScreen() {
             style={{
               flexDirection: 'row',
               alignItems: 'center',
-              backgroundColor: theme.colors.surface,
-              borderRadius: theme.radius.lg,
-              padding: theme.spacing.md,
+              paddingVertical: theme.spacing.md,
               marginBottom: theme.spacing.md,
-              ...theme.shadow.subtle,
+              borderBottomWidth: 1,
+              borderBottomColor: theme.colors.border,
             }}
           >
-            <View
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: theme.radius.sm,
-                backgroundColor: theme.colors.accentSoft,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Sparkles size={18} color={theme.colors.accent} strokeWidth={1.75} />
-            </View>
+            <Sparkles size={24} color={theme.colors.accent} strokeWidth={1.75} />
             <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
               <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>Whole Bible</Body>
               <Label style={{ marginTop: 2 }}>Default — a verse from anywhere in Scripture</Label>

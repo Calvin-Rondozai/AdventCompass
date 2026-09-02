@@ -15,16 +15,8 @@ export function PageLoader() {
         from={{ opacity: 0.45, scale: 0.92 }}
         animate={{ opacity: 1, scale: 1.08 }}
         transition={{ type: 'timing', duration: 750, loop: true }}
-        style={{
-          width: 64,
-          height: 64,
-          borderRadius: theme.radius.pill,
-          backgroundColor: theme.colors.primarySoft,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
       >
-        <Sparkles size={28} color={theme.colors.primary} strokeWidth={1.75} />
+        <Sparkles size={44} color={theme.colors.primary} strokeWidth={1.5} />
       </MotiView>
     </View>
   );

@@ -26,18 +26,7 @@ export default function HymnalLanguagesScreen() {
               ...theme.shadow.subtle,
             }}
           >
-            <View
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: theme.radius.sm,
-                backgroundColor: theme.colors.accentSoft,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Heart size={18} color={theme.colors.accent} strokeWidth={1.75} fill={theme.colors.accent} />
-            </View>
+            <Heart size={26} color={theme.colors.accent} strokeWidth={1.75} fill={theme.colors.accent} />
             <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
               <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>Favorites</Body>
               <Label style={{ marginTop: 2 }}>Hymns you've marked, across every language</Label>
@@ -62,18 +51,7 @@ export default function HymnalLanguagesScreen() {
                 ...theme.shadow.subtle,
               }}
             >
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: theme.radius.sm,
-                  backgroundColor: theme.colors.primarySoft,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Music size={18} color={theme.colors.primary} strokeWidth={1.75} />
-              </View>
+              <Music size={26} color={theme.colors.primary} strokeWidth={1.75} />
               <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
                 <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{hymnal.label}</Body>
                 <Label style={{ marginTop: 2 }}>{hymnal.source}</Label>

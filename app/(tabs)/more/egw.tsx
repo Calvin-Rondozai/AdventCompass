@@ -63,7 +63,7 @@ export default function EgwBookListScreen() {
             No books match "{query}".
           </Body>
         }
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <PressableScale
             onPress={() => router.push({ pathname: '/more/egw/[code]', params: { code: item.code } })}
             scaleTo={0.99}
@@ -72,14 +72,12 @@ export default function EgwBookListScreen() {
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.lg,
-                padding: theme.spacing.md,
-                marginBottom: theme.spacing.sm,
-                ...theme.shadow.subtle,
+                paddingVertical: theme.spacing.md,
+                borderBottomWidth: index === books.length - 1 ? 0 : 1,
+                borderBottomColor: theme.colors.border,
               }}
             >
-              <BookMarked size={18} color={theme.colors.primary} strokeWidth={1.75} />
+              <BookMarked size={22} color={theme.colors.primary} strokeWidth={1.75} />
               <Body style={{ flex: 1, marginLeft: theme.spacing.sm }}>{item.title}</Body>
               <ChevronRight size={16} color={theme.colors.textFaint} />
             </View>

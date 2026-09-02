@@ -39,7 +39,6 @@ import {
 } from '@/services/sabbathPdfSync';
 import { showAlert } from '@/components/ui/AppAlert';
 import { PressableScale } from '@/components/ui/PressableScale';
-import { AnimatedCard } from '@/components/ui/AnimatedCard';
 import { CoverThumbFull } from '@/components/sabbathSchool/CoverThumbFull';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Body, Label } from '@/components/ui/Typography';
@@ -417,57 +416,61 @@ export default function SabbathSchoolScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}
         ListEmptyComponent={emptyState}
-        renderItem={({ item }) => {
+        renderItem={({ item, index }) => {
+          const rowStyle = {
+            flexDirection: 'row' as const,
+            alignItems: 'center' as const,
+            paddingVertical: theme.spacing.sm + 2,
+            borderBottomWidth: index === data.length - 1 ? 0 : 1,
+            borderBottomColor: theme.colors.border,
+          };
+
           if (item.kind === 'downloaded') {
             const row = item.row;
             return (
-              <AnimatedCard style={{ marginBottom: theme.spacing.sm, padding: 0 }}>
-                <PressableScale
-                  onPress={() => router.push({ pathname: '/more/sabbath-school/[id]', params: { id: row.id } })}
-                  scaleTo={0.99}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', padding: theme.spacing.md }}>
-                    <CoverThumb uri={row.cover} width={48} height={64} />
-                    <View style={{ flex: 1, marginLeft: theme.spacing.sm }}>
-                      <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{row.title}</Body>
-                      <Label style={{ marginTop: 2 }}>
-                        {row.human_date} · {SABBATH_LANGUAGES.find((l) => l.code === row.lang)?.label ?? row.lang}
-                        {row.edition ? ` · ${SABBATH_EDITIONS.find((e) => e.suffix === row.edition)?.label ?? row.edition}` : ''}
-                      </Label>
-                    </View>
-                    <PressableScale onPress={() => handleDelete(row.id, row.title)} style={{ padding: theme.spacing.xs }}>
-                      <Trash2 size={18} color={theme.colors.danger} strokeWidth={1.75} />
-                    </PressableScale>
-                    <ChevronRight size={16} color={theme.colors.textFaint} />
+              <PressableScale
+                onPress={() => router.push({ pathname: '/more/sabbath-school/[id]', params: { id: row.id } })}
+                scaleTo={0.99}
+              >
+                <View style={rowStyle}>
+                  <CoverThumb uri={row.cover} width={48} height={64} />
+                  <View style={{ flex: 1, marginLeft: theme.spacing.sm }}>
+                    <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{row.title}</Body>
+                    <Label style={{ marginTop: 2 }}>
+                      {row.human_date} · {SABBATH_LANGUAGES.find((l) => l.code === row.lang)?.label ?? row.lang}
+                      {row.edition ? ` · ${SABBATH_EDITIONS.find((e) => e.suffix === row.edition)?.label ?? row.edition}` : ''}
+                    </Label>
                   </View>
-                </PressableScale>
-              </AnimatedCard>
+                  <PressableScale onPress={() => handleDelete(row.id, row.title)} style={{ padding: theme.spacing.xs }}>
+                    <Trash2 size={18} color={theme.colors.danger} strokeWidth={1.75} />
+                  </PressableScale>
+                  <ChevronRight size={16} color={theme.colors.textFaint} />
+                </View>
+              </PressableScale>
             );
           }
 
           if (item.kind === 'downloadedPdf') {
             const lesson = item.lesson;
             return (
-              <AnimatedCard style={{ marginBottom: theme.spacing.sm, padding: 0 }}>
-                <PressableScale
-                  onPress={() => router.push({ pathname: '/more/sabbath-school/pdf/[id]', params: { id: lesson.id } })}
-                  scaleTo={0.99}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', padding: theme.spacing.md }}>
-                    <CoverThumb uri={guessCoverUrl(LIBRARY_LANG, lesson.division, lesson.code)} width={48} height={64} />
-                    <View style={{ flex: 1, marginLeft: theme.spacing.sm }}>
-                      <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{lesson.title}</Body>
-                      <Label style={{ marginTop: 2 }}>
-                        {lesson.humanDate} · {divisionLabel(lesson.division)} · PDF
-                      </Label>
-                    </View>
-                    <PressableScale onPress={() => handleDeletePdfLesson(lesson)} style={{ padding: theme.spacing.xs }}>
-                      <Trash2 size={18} color={theme.colors.danger} strokeWidth={1.75} />
-                    </PressableScale>
-                    <ChevronRight size={16} color={theme.colors.textFaint} />
+              <PressableScale
+                onPress={() => router.push({ pathname: '/more/sabbath-school/pdf/[id]', params: { id: lesson.id } })}
+                scaleTo={0.99}
+              >
+                <View style={rowStyle}>
+                  <CoverThumb uri={guessCoverUrl(LIBRARY_LANG, lesson.division, lesson.code)} width={48} height={64} />
+                  <View style={{ flex: 1, marginLeft: theme.spacing.sm }}>
+                    <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{lesson.title}</Body>
+                    <Label style={{ marginTop: 2 }}>
+                      {lesson.humanDate} · {divisionLabel(lesson.division)} · PDF
+                    </Label>
                   </View>
-                </PressableScale>
-              </AnimatedCard>
+                  <PressableScale onPress={() => handleDeletePdfLesson(lesson)} style={{ padding: theme.spacing.xs }}>
+                    <Trash2 size={18} color={theme.colors.danger} strokeWidth={1.75} />
+                  </PressableScale>
+                  <ChevronRight size={16} color={theme.colors.textFaint} />
+                </View>
+              </PressableScale>
             );
           }
 
@@ -482,33 +485,36 @@ export default function SabbathSchoolScreen() {
               : pdfSyncing && pdfSyncingDivision !== division.suffix;
           const activeProgress = division.format === 'text' ? textProgress : pdfProgress;
           return (
-            <AnimatedCard style={{ marginBottom: theme.spacing.sm, padding: 0, opacity: isBusyElsewhere ? 0.5 : 1 }}>
-              <PressableScale onPress={() => handleDownloadDivision(division)} scaleTo={0.99} disabled={isBusyElsewhere}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', padding: theme.spacing.md }}>
-                  <CoverThumb uri={guessCoverUrl(LIBRARY_LANG, division.suffix)} width={48} height={64} />
-                  <View style={{ flex: 1, marginLeft: theme.spacing.sm }}>
-                    <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{division.label}</Body>
-                    <Label style={{ marginTop: 2, color: isDownloadingThis ? theme.colors.primary : undefined }} numberOfLines={1}>
-                      {isDownloadingThis ? (activeProgress?.label ?? 'Starting download…') : `${division.ageGroup} · ${division.description}`}
-                    </Label>
-                    {isDownloadingThis && (
-                      <View style={{ marginTop: theme.spacing.xs }}>
-                        <ProgressBar
-                          progress={activeProgress && activeProgress.total > 0 ? activeProgress.current / activeProgress.total : 0}
-                          color={theme.colors.primary}
-                          trackColor={theme.colors.surfaceMuted}
-                        />
-                      </View>
-                    )}
-                  </View>
-                  {isDownloadingThis ? (
-                    <ActivityIndicator size="small" color={theme.colors.primary} />
-                  ) : (
-                    <Download size={18} color={theme.colors.primary} strokeWidth={2} />
+            <PressableScale
+              onPress={() => handleDownloadDivision(division)}
+              scaleTo={0.99}
+              disabled={isBusyElsewhere}
+              style={{ opacity: isBusyElsewhere ? 0.5 : 1 }}
+            >
+              <View style={rowStyle}>
+                <CoverThumb uri={guessCoverUrl(LIBRARY_LANG, division.suffix)} width={48} height={64} />
+                <View style={{ flex: 1, marginLeft: theme.spacing.sm }}>
+                  <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{division.label}</Body>
+                  <Label style={{ marginTop: 2, color: isDownloadingThis ? theme.colors.primary : undefined }} numberOfLines={1}>
+                    {isDownloadingThis ? (activeProgress?.label ?? 'Starting download…') : `${division.ageGroup} · ${division.description}`}
+                  </Label>
+                  {isDownloadingThis && (
+                    <View style={{ marginTop: theme.spacing.xs }}>
+                      <ProgressBar
+                        progress={activeProgress && activeProgress.total > 0 ? activeProgress.current / activeProgress.total : 0}
+                        color={theme.colors.primary}
+                        trackColor={theme.colors.surfaceMuted}
+                      />
+                    </View>
                   )}
                 </View>
-              </PressableScale>
-            </AnimatedCard>
+                {isDownloadingThis ? (
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                ) : (
+                  <Download size={18} color={theme.colors.primary} strokeWidth={2} />
+                )}
+              </View>
+            </PressableScale>
           );
         }}
       />

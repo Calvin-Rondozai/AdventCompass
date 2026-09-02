@@ -102,7 +102,7 @@ export default function ReadingPlanDetailScreen() {
         data={plan.days}
         keyExtractor={(item) => String(item.day)}
         contentContainerStyle={{ padding: theme.spacing.lg, paddingTop: 0, paddingBottom: theme.spacing.xxl }}
-        renderItem={({ item }) => {
+        renderItem={({ item, index }) => {
           const isDone = done.has(item.day);
           const chapterLabel =
             item.chapters.length === 1 ? `${item.book} ${item.chapters[0]}` : `${item.book} ${item.chapters[0]}-${item.chapters[item.chapters.length - 1]}`;
@@ -111,11 +111,9 @@ export default function ReadingPlanDetailScreen() {
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.lg,
-                padding: theme.spacing.sm + 2,
-                marginBottom: theme.spacing.xs + 2,
-                ...theme.shadow.subtle,
+                paddingVertical: theme.spacing.sm + 2,
+                borderBottomWidth: index === plan.days.length - 1 ? 0 : 1,
+                borderBottomColor: theme.colors.border,
               }}
             >
               <PressableScale onPress={() => toggleDay(item.day)} scaleTo={0.85}>

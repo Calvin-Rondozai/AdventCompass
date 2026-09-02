@@ -17,6 +17,7 @@ import {
   Menu,
   Minus,
   Plus,
+  X,
 } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
@@ -30,10 +31,13 @@ import { getLocalizedBookName } from '@/database/bookNames';
 import { useBibleTranslation } from '@/hooks/useBibleTranslation';
 import { AnimatedCard } from '@/components/ui/AnimatedCard';
 import { PressableScale } from '@/components/ui/PressableScale';
-import { WaterGlass } from '@/components/ui/WaterGlass';
+import { WaterBottle } from '@/components/ui/WaterBottle';
 import { DashboardHeroArt } from '@/components/ui/DashboardHeroArt';
 import { ConfettiBurst } from '@/components/ui/ConfettiBurst';
 import { Body, Heading, Label, ScriptureQuote } from '@/components/ui/Typography';
+import { AddScheduleItemSheet } from '@/components/ui/AddScheduleItemSheet';
+import { WeeklySummaryModal } from '@/components/ui/WeeklySummaryModal';
+import { getScheduleIcon } from '@/components/ui/ScheduleIconPicker';
 import { mlToCups } from '@/database/habits';
 import type { HabitType } from '@/database/habits';
 
@@ -62,9 +66,9 @@ export default function HomeDashboard() {
   const { translation } = useBibleTranslation();
   const verse = useDailyVerse();
   const habits = useHabits();
-  const [burst, setBurst] = React.useState<{ type: HabitType; nonce: number } | null>(null);
-  const [waterBump, setWaterBump] = useState(0);
+  const [burst, setBurst] = React.useState<{ type: HabitType | string; nonce: number } | null>(null);
   const [todaysLesson, setTodaysLesson] = useState<TodaysLesson | null>(null);
+  const [addSheetVisible, setAddSheetVisible] = useState(false);
   const chapterOfDay = getChapterADay();
   const greeting = useSabbathGreeting();
   const weekDays = habits.week.bible_study.length === 7 ? habits.week.bible_study : [];
@@ -120,7 +124,7 @@ export default function HomeDashboard() {
                 {formatLongDate()}
               </Body>
             </View>
-            <DashboardHeroArt night={getTimeOfDay() === 'night' || getTimeOfDay() === 'evening'} size={104} />
+            <DashboardHeroArt timeOfDay={getTimeOfDay()} size={104} />
           </MotiView>
         </View>
 
@@ -164,18 +168,7 @@ export default function HomeDashboard() {
             scaleTo={0.98}
           >
             <AnimatedCard delay={100} style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <View
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: theme.radius.md,
-                  backgroundColor: theme.colors.primarySoft,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <CalendarDays size={20} color={theme.colors.primary} strokeWidth={1.75} />
-              </View>
+              <CalendarDays size={28} color={theme.colors.primary} strokeWidth={1.75} />
               <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
                 <Label>Today's Plan</Label>
                 <Body style={{ fontFamily: theme.fontFamily.sansSemiBold, marginTop: 2 }}>
@@ -198,18 +191,7 @@ export default function HomeDashboard() {
               scaleTo={0.98}
             >
               <AnimatedCard delay={130} style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: theme.radius.md,
-                    backgroundColor: theme.colors.accentSoft,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <BookOpen size={20} color={theme.colors.accent} strokeWidth={1.75} />
-                </View>
+                <BookOpen size={28} color={theme.colors.accent} strokeWidth={1.75} />
                 <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
                   <Label style={{ color: theme.colors.accent }}>Sabbath School: Lesson {todaysLesson.week}</Label>
                   <Body style={{ fontFamily: theme.fontFamily.sansSemiBold, marginTop: 2 }} numberOfLines={1}>
@@ -254,18 +236,7 @@ export default function HomeDashboard() {
                         backgroundColor: theme.colors.surfaceMuted,
                       }}
                     >
-                      <View
-                        style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: theme.radius.sm,
-                          backgroundColor: theme.colors.primarySoft,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <Icon size={18} color={theme.colors.primary} strokeWidth={2} />
-                      </View>
+                      <Icon size={24} color={theme.colors.primary} strokeWidth={2} />
                       <Body style={{ flex: 1, marginLeft: theme.spacing.sm, fontFamily: theme.fontFamily.sansMedium }}>
                         {label}
                       </Body>
@@ -305,24 +276,106 @@ export default function HomeDashboard() {
                   </PressableScale>
                 );
               })}
+              {habits.customHabits.map((item) => {
+                const isDone = habits.completed[item.id];
+                const streak = habits.streaks[item.id];
+                const Icon = getScheduleIcon(item.icon);
+                return (
+                  <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs }}>
+                    <PressableScale
+                      onPress={() => {
+                        if (!isDone) {
+                          const nonce = Date.now();
+                          setBurst({ type: item.id, nonce });
+                          setTimeout(() => setBurst((b) => (b?.nonce === nonce ? null : b)), 900);
+                        }
+                        habits.toggle(item.id);
+                      }}
+                      scaleTo={0.98}
+                      style={{ flex: 1 }}
+                    >
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          padding: theme.spacing.sm,
+                          borderRadius: theme.radius.md,
+                          backgroundColor: theme.colors.surfaceMuted,
+                        }}
+                      >
+                        <Icon size={24} color={theme.colors.primary} strokeWidth={2} />
+                        <Body style={{ flex: 1, marginLeft: theme.spacing.sm, fontFamily: theme.fontFamily.sansMedium }} numberOfLines={1}>
+                          {item.label}
+                        </Body>
+                        {streak > 0 && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginRight: theme.spacing.sm }}>
+                            <Flame size={14} color={theme.colors.accent} strokeWidth={2} />
+                            <Body style={{ fontSize: theme.fontSize.xs, color: theme.colors.accent }}>{streak}</Body>
+                          </View>
+                        )}
+                        <MotiView
+                          animate={{
+                            backgroundColor: isDone ? theme.colors.success : 'transparent',
+                            borderColor: isDone ? theme.colors.success : theme.colors.border,
+                          }}
+                          transition={{ type: 'timing', duration: theme.motion.fast }}
+                          style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: theme.radius.pill,
+                            borderWidth: 2,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {isDone && (
+                            <MotiView
+                              from={{ scale: 0, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              transition={{ type: 'spring', damping: 10 }}
+                            >
+                              <Check size={14} color="#FFFFFF" strokeWidth={3} />
+                            </MotiView>
+                          )}
+                          <ConfettiBurst key={burst?.type === item.id ? burst.nonce : 'idle'} active={burst?.type === item.id} />
+                        </MotiView>
+                      </View>
+                    </PressableScale>
+                    <PressableScale onPress={() => habits.removeCustomScheduleItem(item.id)} scaleTo={0.85}>
+                      <View style={{ padding: theme.spacing.xs }}>
+                        <X size={16} color={theme.colors.textFaint} strokeWidth={2} />
+                      </View>
+                    </PressableScale>
+                  </View>
+                );
+              })}
+              <PressableScale onPress={() => setAddSheetVisible(true)} scaleTo={0.98}>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: theme.spacing.sm,
+                    borderRadius: theme.radius.md,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
+                    borderStyle: 'dashed',
+                    gap: theme.spacing.xs,
+                  }}
+                >
+                  <Plus size={16} color={theme.colors.textMuted} strokeWidth={2} />
+                  <Body style={{ color: theme.colors.textMuted, fontFamily: theme.fontFamily.sansMedium, fontSize: theme.fontSize.sm }}>
+                    Add to schedule
+                  </Body>
+                </View>
+              </PressableScale>
             </View>
           </AnimatedCard>
 
           {/* Water tracker */}
           <AnimatedCard delay={200}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <View
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: theme.radius.md,
-                  backgroundColor: theme.colors.primarySoft,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Droplets size={20} color={theme.colors.primary} strokeWidth={1.75} />
-              </View>
+              <Droplets size={28} color={theme.colors.primary} strokeWidth={1.75} />
               <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
                 <Label>Water Intake</Label>
                 <Heading style={{ fontSize: theme.fontSize.lg, marginTop: 2 }}>
@@ -334,12 +387,7 @@ export default function HomeDashboard() {
                 </Body>
               </View>
               <View style={{ alignItems: 'center', gap: theme.spacing.xs }}>
-                <PressableScale
-                  onPress={() => {
-                    habits.drinkWater();
-                    setWaterBump((n) => n + 1);
-                  }}
-                >
+                <PressableScale onPress={() => habits.drinkWater()}>
                   <View
                     style={{
                       width: 36,
@@ -353,13 +401,7 @@ export default function HomeDashboard() {
                     <Plus size={16} color={theme.colors.onPrimary} strokeWidth={2.4} />
                   </View>
                 </PressableScale>
-                <WaterGlass
-                  progress={habits.waterMl / habits.waterGoalMl}
-                  size={40}
-                  color={theme.colors.primary}
-                  trackColor={theme.colors.surfaceMuted}
-                  bump={waterBump}
-                />
+                <WaterBottle progress={habits.waterMl / habits.waterGoalMl} size={40} />
                 <PressableScale onPress={() => habits.undoWater()} disabled={habits.waterMl <= 0}>
                   <Body
                     style={{
@@ -417,24 +459,39 @@ export default function HomeDashboard() {
                   </View>
                 </View>
               ))}
+              {habits.customHabits.map((item) => {
+                const Icon = getScheduleIcon(item.icon);
+                return (
+                  <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Icon size={14} color={theme.colors.textMuted} strokeWidth={1.75} />
+                    <Body style={{ width: 84, marginLeft: theme.spacing.xs, fontSize: theme.fontSize.xs }} numberOfLines={1}>
+                      {item.label}
+                    </Body>
+                    <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between' }}>
+                      {(habits.week[item.id] ?? []).map((day) => (
+                        <View
+                          key={day.date}
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: theme.radius.pill,
+                            backgroundColor: day.completed ? theme.colors.success : 'transparent',
+                            borderWidth: day.completed ? 0 : 1.5,
+                            borderColor: theme.colors.border,
+                          }}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                );
+              })}
             </View>
           </AnimatedCard>
 
           {/* Devotional teaser */}
           <PressableScale onPress={() => router.push('/more/devotional')} scaleTo={0.98}>
             <AnimatedCard delay={320} style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <View
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: theme.radius.md,
-                  backgroundColor: theme.colors.accentSoft,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <HeartHandshake size={20} color={theme.colors.accent} strokeWidth={1.75} />
-              </View>
+              <HeartHandshake size={28} color={theme.colors.accent} strokeWidth={1.75} />
               <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
                 <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>Devotional</Body>
                 <Body style={{ color: theme.colors.textMuted, fontSize: theme.fontSize.sm }}>
@@ -446,6 +503,13 @@ export default function HomeDashboard() {
           </PressableScale>
         </View>
       </ScrollView>
+
+      <AddScheduleItemSheet
+        visible={addSheetVisible}
+        onClose={() => setAddSheetVisible(false)}
+        onAdd={(label, icon) => habits.addCustomScheduleItem(label, icon)}
+      />
+      <WeeklySummaryModal stats={habits.weeklySummary} onClose={habits.dismissWeeklySummary} />
     </SafeAreaView>
   );
 }

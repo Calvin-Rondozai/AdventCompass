@@ -34,12 +34,12 @@ export const lightColors = {
 };
 
 export const darkColors: typeof lightColors = {
-  background: '#0B1120',
-  backgroundAlt: '#101827',
-  surface: '#131B2C',
-  surfaceElevated: '#16203A',
-  surfaceMuted: '#1A2540',
-  border: '#232F4A',
+  background: '#000000',
+  backgroundAlt: '#0D0D0D',
+  surface: '#121212',
+  surfaceElevated: '#1C1C1C',
+  surfaceMuted: '#161616',
+  border: '#2A2A2A',
 
   primary: '#60A5FA',
   primarySoft: '#1E3A5F',

@@ -65,19 +65,15 @@ export default function BibleBooksScreen() {
               }
               scaleTo={0.98}
             >
-              <AnimatedCard style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.md }}>
-                <View
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: theme.radius.md,
-                    backgroundColor: theme.colors.primarySoft,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <BookOpen size={20} color={theme.colors.primary} strokeWidth={1.75} />
-                </View>
+              <AnimatedCard
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  marginBottom: theme.spacing.md,
+                  borderRadius: theme.radius.xl,
+                }}
+              >
+                <BookOpen size={28} color={theme.colors.primary} strokeWidth={1.75} />
                 <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
                   <Label>Continue Reading</Label>
                   <Body style={{ fontFamily: theme.fontFamily.sansSemiBold, marginTop: 2 }}>
@@ -103,9 +99,9 @@ export default function BibleBooksScreen() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 paddingVertical: theme.spacing.sm + 2,
-                paddingHorizontal: theme.spacing.md,
+                paddingHorizontal: theme.spacing.lg,
                 backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.lg,
+                borderRadius: theme.radius.pill,
                 marginBottom: theme.spacing.xs + 2,
                 ...theme.shadow.subtle,
               }}

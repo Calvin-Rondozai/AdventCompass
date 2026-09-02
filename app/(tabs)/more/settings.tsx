@@ -55,48 +55,34 @@ export default function SettingsScreen() {
 
         <Label style={{ marginBottom: theme.spacing.xs }}>Notifications</Label>
         <PressableScale onPress={() => router.push('/more/notifications')} scaleTo={0.99}>
-          <AnimatedCard style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: theme.radius.sm,
-                backgroundColor: theme.colors.primarySoft,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Bell size={18} color={theme.colors.primary} strokeWidth={1.75} />
-            </View>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingVertical: theme.spacing.md,
+              borderBottomWidth: 1,
+              borderBottomColor: theme.colors.border,
+            }}
+          >
+            <Bell size={24} color={theme.colors.primary} strokeWidth={1.75} />
             <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
               <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>Reminders</Body>
               <Label style={{ marginTop: 2 }}>Water, prayer, Bible study, Sabbath & more</Label>
             </View>
-            <ChevronRight size={18} color={theme.colors.textFaint} />
-          </AnimatedCard>
+            <ChevronRight size={16} color={theme.colors.textFaint} />
+          </View>
         </PressableScale>
 
         <Label style={{ marginBottom: theme.spacing.xs, marginTop: theme.spacing.md }}>Health</Label>
         <PressableScale onPress={() => router.push('/more/health')} scaleTo={0.99}>
-          <AnimatedCard style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: theme.radius.sm,
-                backgroundColor: theme.colors.primarySoft,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <HeartPulse size={18} color={theme.colors.primary} strokeWidth={1.75} />
-            </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: theme.spacing.md }}>
+            <HeartPulse size={24} color={theme.colors.primary} strokeWidth={1.75} />
             <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
               <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>Health & Wellness</Body>
               <Label style={{ marginTop: 2 }}>Exercise tracking</Label>
             </View>
-            <ChevronRight size={18} color={theme.colors.textFaint} />
-          </AnimatedCard>
+            <ChevronRight size={16} color={theme.colors.textFaint} />
+          </View>
         </PressableScale>
       </ScrollView>
     </SafeAreaView>

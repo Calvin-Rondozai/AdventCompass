@@ -34,7 +34,7 @@ export default function SabbathQuarterLessonsScreen() {
         data={quarter.lessons}
         keyExtractor={(item) => String(item.week)}
         contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <PressableScale
             onPress={() => router.push({ pathname: '/more/sabbath-school/[id]/[week]', params: { id: id ?? '', week: String(item.week) } })}
             scaleTo={0.99}
@@ -43,11 +43,9 @@ export default function SabbathQuarterLessonsScreen() {
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.lg,
-                padding: theme.spacing.md,
-                marginBottom: theme.spacing.xs + 2,
-                ...theme.shadow.subtle,
+                paddingVertical: theme.spacing.sm + 2,
+                borderBottomWidth: index === quarter.lessons.length - 1 ? 0 : 1,
+                borderBottomColor: theme.colors.border,
               }}
             >
               <Label style={{ width: 32 }}>{item.week}</Label>

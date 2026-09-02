@@ -52,13 +52,13 @@ export function HymnNumberJump({ language, replaceNavigation }: Props) {
             width: 56,
             height: 56,
             borderRadius: theme.radius.pill,
-            backgroundColor: theme.colors.primary,
+            backgroundColor: theme.colors.accent,
             alignItems: 'center',
             justifyContent: 'center',
             ...theme.shadow.floating,
           }}
         >
-          <Grid3x3 size={24} color={theme.colors.onPrimary} strokeWidth={2.2} />
+          <Grid3x3 size={24} color={theme.colors.onAccent} strokeWidth={2.2} />
         </View>
       </PressableScale>
 

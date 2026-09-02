@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 19;
+export const SCHEMA_VERSION = 20;
 
 export const CREATE_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS bible (
@@ -41,6 +41,20 @@ CREATE TABLE IF NOT EXISTS habits (
   completed INTEGER NOT NULL DEFAULT 0,
   value INTEGER NOT NULL DEFAULT 0,
   date TEXT NOT NULL
+);
+
+-- User-added rows for the Home dashboard's "Today's Schedule" card (alongside the three
+-- built-in goals — bible_study/prayer/exercise — which aren't stored here). icon is one of
+-- the named choices in components/ui/ScheduleIconPicker.tsx; habits.habit_type for a
+-- custom item is this row's id, so its completion/streak/week-history reuses the same
+-- habits table and query helpers as the built-in goals with no schema change there.
+CREATE TABLE IF NOT EXISTS custom_habits (
+  id TEXT PRIMARY KEY NOT NULL,
+  label TEXT NOT NULL,
+  icon TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  archived INTEGER NOT NULL DEFAULT 0,
+  created_date TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS reminders (

@@ -27,7 +27,7 @@ export default function CommentaryChapterListScreen() {
         keyExtractor={(item) => String(item.number)}
         contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}
         ListHeaderComponent={<Label style={{ marginBottom: theme.spacing.sm }}>Chapters with commentary</Label>}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <PressableScale
             onPress={() =>
               router.push({ pathname: '/more/commentary/[book]/[chapter]', params: { book, chapter: String(item.number) } })
@@ -38,11 +38,9 @@ export default function CommentaryChapterListScreen() {
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.lg,
-                padding: theme.spacing.md,
-                marginBottom: theme.spacing.xs + 2,
-                ...theme.shadow.subtle,
+                paddingVertical: theme.spacing.sm + 2,
+                borderBottomWidth: index === chapters.length - 1 ? 0 : 1,
+                borderBottomColor: theme.colors.border,
               }}
             >
               <Body style={{ flex: 1 }}>Chapter {item.number}</Body>

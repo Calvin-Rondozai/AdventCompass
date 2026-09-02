@@ -27,10 +27,18 @@ export function getModelPath(): string {
 // Self-heals a truncated leftover (the app got killed, or the network dropped, mid-download,
 // before our own cleanup in downloadModel's catch could run) rather than let it sit there
 // looking "downloaded" and fail later with an opaque "Failed to load model" from llama.rn.
+//
+// Must NOT delete while a download is actively in flight (see `downloadPromise` below): a file
+// smaller than EXPECTED_MODEL_BYTES is completely normal mid-download, not evidence of a stale
+// truncated leftover. This function is called from hasModel()/getActiveModelInfo() too, which
+// can run at any time (e.g. a screen re-mounting) while the module-level download is still
+// writing bytes to this exact path — deleting it there unlinks the file out from under the
+// in-flight write, so the transfer "succeeds" from OkHttp's point of view but the model never
+// actually appears on disk once it's done, wasting the entire download for nothing.
 function isCompleteModelFile(file: File): boolean {
   if (!file.exists) return false;
   if (file.size < EXPECTED_MODEL_BYTES) {
-    file.delete();
+    if (!downloadPromise) file.delete();
     return false;
   }
   return true;
@@ -63,11 +71,19 @@ export function getLastDownloadProgress(): DownloadProgress | null {
 // same issue repeatedly) — if a download fails partway, the partial file is removed so a
 // retry starts clean rather than resuming into a truncated, unusable .gguf.
 export function downloadModel(onProgress?: (p: DownloadProgress) => void): Promise<string> {
-  const destination = modelFile();
-  if (isCompleteModelFile(destination)) return Promise.resolve(destination.uri);
-
+  // Must check for an in-flight download BEFORE the isCompleteModelFile self-heal check
+  // below — that check deletes the destination file if it looks "too small", which is
+  // exactly what an actively-downloading file looks like. Re-entering this function while
+  // a download is already running (e.g. the AI Assistant screen unmounts and remounts
+  // mid-download, re-running the "join an in-flight download" effect) used to run the
+  // self-heal check first, deleting the file out from under the OkHttp write that's still
+  // in progress — the download would finish "successfully" from the native side but the
+  // model would never actually be on disk, silently wasting the entire transfer.
   if (onProgress) progressListeners.add(onProgress);
   if (downloadPromise) return downloadPromise;
+
+  const destination = modelFile();
+  if (isCompleteModelFile(destination)) return Promise.resolve(destination.uri);
 
   const task = File.createDownloadTask(MODEL_URL, destination, {
     onProgress: (p) => {

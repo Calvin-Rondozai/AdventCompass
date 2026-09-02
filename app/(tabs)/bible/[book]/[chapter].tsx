@@ -107,11 +107,35 @@ export default function ChapterReaderScreen() {
     return () => sub.remove();
   }, [goBack]);
 
+  const openChapterPicker = useCallback(() => {
+    router.push({ pathname: '/bible/[book]', params: { book, chapter: String(chapter) } });
+  }, [book, chapter]);
+
   useLayoutEffect(() => {
     const localizedBook = getLocalizedBookName(translation, book);
     navigation.setOptions({
       title: `${localizedBook} ${chapter}`,
       headerBackTitle: localizedBook,
+      // A plain string `title` (above) is only used as the fallback/back-button label —
+      // the actual rendered title is this custom headerTitle so it can be tappable,
+      // deep-linking into the chapter-picker screen (app/(tabs)/bible/[book].tsx) for
+      // this same book/chapter, pre-selected.
+      headerTitle: () => (
+        <PressableScale onPress={openChapterPicker} scaleTo={0.97}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+            <Body
+              style={{
+                fontFamily: theme.fontFamily.serifSemiBold,
+                fontSize: theme.fontSize.md,
+                color: theme.colors.text,
+              }}
+            >
+              {localizedBook} {chapter}
+            </Body>
+            <ChevronDown size={14} color={theme.colors.textFaint} />
+          </View>
+        </PressableScale>
+      ),
       // When this screen is reached via a deep link from another tab (Devotions, a
       // reading plan, a note), this stack has no prior entry, so the default back
       // button is absent — always provide a way back to the book list. The hardware
@@ -135,7 +159,7 @@ export default function ChapterReaderScreen() {
         </View>
       ),
     });
-  }, [navigation, book, chapter, translation, theme, compareTranslation, goBack, readAloudOpen, toggleReadAloudOpen]);
+  }, [navigation, book, chapter, translation, theme, compareTranslation, goBack, readAloudOpen, toggleReadAloudOpen, openChapterPicker]);
 
   // Restore the tab bar whenever this screen loses focus or unmounts, so it doesn't
   // stay hidden after navigating away mid-scroll.

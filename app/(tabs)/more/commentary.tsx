@@ -36,7 +36,7 @@ export default function CommentaryBookListScreen() {
         renderSectionHeader={({ section }) => (
           <Label style={{ marginTop: theme.spacing.md, marginBottom: theme.spacing.sm }}>{section.title}</Label>
         )}
-        renderItem={({ item }) => (
+        renderItem={({ item, index, section }) => (
           <PressableScale
             onPress={() => router.push({ pathname: '/more/commentary/[book]', params: { book: item.name } })}
             scaleTo={0.99}
@@ -45,11 +45,9 @@ export default function CommentaryBookListScreen() {
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.lg,
-                padding: theme.spacing.md,
-                marginBottom: theme.spacing.xs + 2,
-                ...theme.shadow.subtle,
+                paddingVertical: theme.spacing.sm + 2,
+                borderBottomWidth: index === section.data.length - 1 ? 0 : 1,
+                borderBottomColor: theme.colors.border,
               }}
             >
               <Body style={{ flex: 1 }}>{item.name}</Body>

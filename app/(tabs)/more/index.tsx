@@ -24,21 +24,37 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body } from '@/components/ui/Typography';
 
-const MENU = [
-  { href: '/more/sabbath-school', Icon: CalendarDays, title: 'Sabbath School' },
-  { href: '/more/devotional', Icon: BookHeart, title: 'Devotions' },
-  { href: '/more/reading-plans', Icon: BookOpen, title: 'Reading Plans' },
-  { href: '/more/egw', Icon: BookMarked, title: 'Ellen G. White Books' },
-  { href: '/more/beliefs', Icon: ListChecks, title: 'Fundamental Beliefs' },
-  { href: '/more/commentary', Icon: Library, title: 'Bible Commentary' },
-  { href: '/more/prayer', Icon: HeartHandshake, title: 'Prayer Journal' },
-  { href: '/more/offertory', Icon: HandCoins, title: 'Offertory Reading' },
-  { href: '/more/topical-verses', Icon: Heart, title: 'Topical Verses' },
-  { href: '/more/childrens-sermons', Icon: Gift, title: "Children's Sermons" },
-  { href: '/more/special-days', Icon: CalendarClock, title: 'Special Days' },
-  { href: '/more/ai-assistant', Icon: Sparkles, title: 'AI Bible Assistant' },
-  { href: '/more/settings', Icon: SettingsIcon, title: 'Settings' },
-  { href: '/more/about', Icon: Info, title: 'About' },
+// Grouped for visual breathing room only — routes, order, and item set are unchanged.
+const SECTIONS = [
+  {
+    key: 'study',
+    items: [
+      { href: '/more/sabbath-school', Icon: CalendarDays, title: 'Sabbath School' },
+      { href: '/more/devotional', Icon: BookHeart, title: 'Devotions' },
+      { href: '/more/reading-plans', Icon: BookOpen, title: 'Reading Plans' },
+      { href: '/more/egw', Icon: BookMarked, title: 'Ellen G. White Books' },
+      { href: '/more/beliefs', Icon: ListChecks, title: 'Fundamental Beliefs' },
+      { href: '/more/commentary', Icon: Library, title: 'Bible Commentary' },
+    ],
+  },
+  {
+    key: 'tools',
+    items: [
+      { href: '/more/prayer', Icon: HeartHandshake, title: 'Prayer Journal' },
+      { href: '/more/offertory', Icon: HandCoins, title: 'Offertory Reading' },
+      { href: '/more/topical-verses', Icon: Heart, title: 'Topical Verses' },
+      { href: '/more/childrens-sermons', Icon: Gift, title: "Children's Sermons" },
+      { href: '/more/special-days', Icon: CalendarClock, title: 'Special Days' },
+      { href: '/more/ai-assistant', Icon: Sparkles, title: 'AI Bible Assistant' },
+    ],
+  },
+  {
+    key: 'app',
+    items: [
+      { href: '/more/settings', Icon: SettingsIcon, title: 'Settings' },
+      { href: '/more/about', Icon: Info, title: 'About' },
+    ],
+  },
 ] as const;
 
 export default function MoreMenuScreen() {
@@ -46,37 +62,30 @@ export default function MoreMenuScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={[]}>
-      <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.sm }}>
-        {MENU.map(({ href, Icon, title }) => (
-          <PressableScale key={href} onPress={() => router.push(href)} scaleTo={0.99}>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.lg,
-                padding: theme.spacing.md,
-                ...theme.shadow.subtle,
-              }}
-            >
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: theme.radius.sm,
-                  backgroundColor: theme.colors.primarySoft,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Icon size={20} color={theme.colors.primary} strokeWidth={1.75} />
-              </View>
-              <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
-                <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{title}</Body>
-              </View>
-              <ChevronRight size={18} color={theme.colors.textFaint} />
-            </View>
-          </PressableScale>
+      <ScrollView contentContainerStyle={{ paddingVertical: theme.spacing.sm }}>
+        {SECTIONS.map((section, sectionIndex) => (
+          <View key={section.key} style={{ marginTop: sectionIndex === 0 ? 0 : theme.spacing.lg }}>
+            {section.items.map(({ href, Icon, title }, itemIndex) => (
+              <PressableScale key={href} onPress={() => router.push(href)} scaleTo={0.99}>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingVertical: theme.spacing.md,
+                    paddingHorizontal: theme.spacing.lg,
+                    borderBottomWidth: itemIndex === section.items.length - 1 ? 0 : 1,
+                    borderBottomColor: theme.colors.border,
+                  }}
+                >
+                  <Icon size={24} color={theme.colors.primary} strokeWidth={1.75} />
+                  <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
+                    <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{title}</Body>
+                  </View>
+                  <ChevronRight size={16} color={theme.colors.textFaint} />
+                </View>
+              </PressableScale>
+            ))}
+          </View>
         ))}
       </ScrollView>
     </SafeAreaView>
