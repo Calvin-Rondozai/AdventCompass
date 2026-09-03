@@ -5,7 +5,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { runOnJS } from 'react-native-reanimated';
-import { ArrowLeft, Bookmark, Columns, ChevronDown, Languages, Library, Link2, NotebookPen, Palette, Volume2, X } from '@/components/ui/Icon';
+import { ArrowLeft, Bookmark, Columns, ChevronDown, Library, Link2, NotebookPen, Palette, Volume2, X } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { getChapterVerses, Verse } from '@/database/bible';
@@ -117,24 +117,52 @@ export default function ChapterReaderScreen() {
       title: `${localizedBook} ${chapter}`,
       headerBackTitle: localizedBook,
       // A plain string `title` (above) is only used as the fallback/back-button label —
-      // the actual rendered title is this custom headerTitle so it can be tappable,
-      // deep-linking into the chapter-picker screen (app/(tabs)/bible/[book].tsx) for
-      // this same book/chapter, pre-selected.
+      // the actual rendered title is this bordered two-zone pill: book+chapter on the
+      // left (tappable, deep-links into the chapter-picker screen at
+      // app/(tabs)/bible/[book].tsx for this same book/chapter, pre-selected), version on
+      // the right (tappable, opens TranslationSheet), split by a single divider line
+      // inside one shared outline.
       headerTitle: () => (
-        <PressableScale onPress={openChapterPicker} scaleTo={0.97}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-            <Body
-              style={{
-                fontFamily: theme.fontFamily.serifSemiBold,
-                fontSize: theme.fontSize.md,
-                color: theme.colors.text,
-              }}
-            >
-              {localizedBook} {chapter}
-            </Body>
-            <ChevronDown size={14} color={theme.colors.textFaint} />
-          </View>
-        </PressableScale>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'stretch',
+            alignSelf: 'flex-start',
+            borderWidth: 1.5,
+            borderColor: theme.colors.primary,
+            borderRadius: theme.radius.pill,
+            overflow: 'hidden',
+          }}
+        >
+          <PressableScale onPress={openChapterPicker} scaleTo={0.97}>
+            <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, justifyContent: 'center' }}>
+              <Body
+                style={{
+                  fontFamily: theme.fontFamily.serifSemiBold,
+                  fontSize: theme.fontSize.sm,
+                  color: theme.colors.text,
+                }}
+                numberOfLines={1}
+              >
+                {localizedBook} {chapter}
+              </Body>
+            </View>
+          </PressableScale>
+          <View style={{ width: 1.5, backgroundColor: theme.colors.primary }} />
+          <PressableScale onPress={() => setShowVersionSheet(true)} scaleTo={0.97}>
+            <View style={{ paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.xs, justifyContent: 'center' }}>
+              <Body
+                style={{
+                  fontFamily: theme.fontFamily.sansSemiBold,
+                  fontSize: theme.fontSize.sm,
+                  color: theme.colors.text,
+                }}
+              >
+                {translation}
+              </Body>
+            </View>
+          </PressableScale>
+        </View>
       ),
       // When this screen is reached via a deep link from another tab (Devotions, a
       // reading plan, a note), this stack has no prior entry, so the default back
@@ -447,13 +475,6 @@ export default function ChapterReaderScreen() {
           scrollEventThrottle={32}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.sm, gap: theme.spacing.md }}>
-            <PressableScale onPress={() => setShowVersionSheet(true)} scaleTo={0.97}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Languages size={14} color={theme.colors.textMuted} />
-                <Label>{translation}</Label>
-                <ChevronDown size={12} color={theme.colors.textMuted} />
-              </View>
-            </PressableScale>
             {/* Same toggle as the header's Columns icon — kept here too, labeled, since an
                 unlabeled header icon is easy to miss as "the compare feature" entirely. */}
             <PressableScale

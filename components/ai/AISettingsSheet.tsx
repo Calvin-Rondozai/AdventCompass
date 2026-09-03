@@ -139,7 +139,7 @@ export function AISettingsSheet({
                 <Info size={16} color={theme.colors.accent} strokeWidth={1.75} style={{ marginTop: 2 }} />
                 <Body style={{ flex: 1, marginLeft: theme.spacing.xs, fontSize: theme.fontSize.sm, color: theme.colors.onAccent }}>
                   {modelInfo?.ready
-                    ? "Model ready. This banner stays until you're running a development build — Expo Go can't load the on-device model at all."
+                    ? "Model ready. This banner stays until you're running a development build Expo Go can't load the on-device model at all."
                     : 'Offline answers need a development build (an on-device model, no internet at chat time). You can set up the model now so it\'s ready the moment that build exists.'}
                 </Body>
               </View>

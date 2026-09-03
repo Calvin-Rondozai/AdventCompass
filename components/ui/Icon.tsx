@@ -2,7 +2,6 @@ import React from 'react';
 import { FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { View } from 'react-native';
 import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
-import * as Lucide from 'lucide-react-native';
 
 // A drop-in replacement for the lucide-react-native icons this app used to import —
 // same component names and props (size/color/style, plus fill for the handful of
@@ -36,18 +35,13 @@ function makeFA5Icon(name: string) {
   };
 }
 
-// Two icons kept on lucide by explicit request — the Ionicons equivalents for these
-// specific concepts (prayer, note-taking) didn't read as well as the originals. Wrapped
-// (rather than re-exported directly) so their prop type lines up with every other icon
-// here — call sites that type an icon slot as `typeof BookOpen` need that to match.
-function fromLucide(LucideIcon: React.ComponentType<any>) {
-  return function IconComponent({ size = 20, color, fill, strokeWidth, style }: IconProps) {
-    return <LucideIcon size={size} color={color} fill={fill} strokeWidth={strokeWidth} style={style} />;
-  };
-}
-
-export const HeartHandshake = fromLucide(Lucide.HeartHandshake);
-export const NotebookPen = fromLucide(Lucide.NotebookPen);
+// Swapped from Lucide's NotebookPen/HeartHandshake to these FontAwesome5 glyphs on
+// request for a different look for the note-taking and prayer concepts — a literal
+// sticky note and literal praying hands read more distinctly than the previous pair.
+// Every call site imports these by name (HeartHandshake, NotebookPen), so nothing else
+// needed to change.
+export const HeartHandshake = makeFA5Icon('praying-hands');
+export const NotebookPen = makeFA5Icon('sticky-note');
 
 export const Archive = makeIcon('archive');
 export const ArrowLeft = makeIcon('arrow-back');
@@ -120,6 +114,7 @@ export const Plus = makeIcon('add');
 export const RefreshCw = makeIcon('refresh');
 export const Search = makeIcon('search');
 export const Settings = makeIcon('settings');
+export const ShareIcon = makeIcon('share-social');
 export const SkipBack = makeIcon('play-skip-back');
 export const SkipForward = makeIcon('play-skip-forward');
 export const Sparkles = makeIcon('sparkles');

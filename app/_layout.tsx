@@ -62,8 +62,8 @@ export default function RootLayout() {
   // Hides the native OS splash (Android 12+'s SplashScreen API — icon + background
   // color only, see android/app/src/main/res/values/styles.xml) once the app is fully
   // ready to render (fonts loaded AND the db/onboarding-route check in RootReady has
-  // settled) — there's no more JS-rendered branded overlay to hand off to, so the native
-  // splash just stays up for the whole loading window instead.
+  // settled) — there's no JS-rendered overlay to hand off to, so the native splash just
+  // stays up for the whole loading window instead.
   useEffect(() => {
     if (appReady) SplashScreen.hideAsync().catch(() => {});
   }, [appReady]);

@@ -1,8 +1,8 @@
 import React from 'react';
-import { Image, Linking, View } from 'react-native';
+import { Image, Linking, Share, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
-import { ChevronRight, Mail, User } from '@/components/ui/Icon';
+import { ChevronRight, Mail, ShareIcon, User } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -15,9 +15,16 @@ export default function AboutScreen() {
   const theme = useTheme();
   const version = Constants.expoConfig?.version ?? '1.0.0';
 
+  const handleShare = () => {
+    Share.share({
+      message: 'Check out AdventCompass — a Bible study companion app!',
+    }).catch(() => {});
+  };
+
   const rows = [
     { icon: User, label: 'Developer', value: DEVELOPER },
     { icon: Mail, label: 'Contact', value: CONTACT_EMAIL, onPress: () => Linking.openURL(`mailto:${CONTACT_EMAIL}`) },
+    { icon: ShareIcon, label: 'Share', value: 'Share this app with others', onPress: handleShare },
   ];
 
   return (

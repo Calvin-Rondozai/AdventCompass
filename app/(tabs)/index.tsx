@@ -387,32 +387,34 @@ export default function HomeDashboard() {
                 </Body>
               </View>
               <View style={{ alignItems: 'center', gap: theme.spacing.xs }}>
-                <PressableScale onPress={() => habits.drinkWater()}>
-                  <View
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: theme.radius.pill,
-                      backgroundColor: theme.colors.primary,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Plus size={16} color={theme.colors.onPrimary} strokeWidth={2.4} />
-                  </View>
-                </PressableScale>
-                <WaterBottle progress={habits.waterMl / habits.waterGoalMl} size={40} />
-                <PressableScale onPress={() => habits.undoWater()} disabled={habits.waterMl <= 0}>
-                  <Body
-                    style={{
-                      color: theme.colors.textFaint,
-                      fontSize: theme.fontSize.xs,
-                      opacity: habits.waterMl <= 0 ? 0.4 : 1,
-                    }}
-                  >
-                    <Minus size={10} color={theme.colors.textFaint} strokeWidth={2.4} /> undo
-                  </Body>
-                </PressableScale>
+                <WaterBottle progress={habits.waterMl / habits.waterGoalMl} size={72} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+                  <PressableScale onPress={() => habits.drinkWater()}>
+                    <View
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: theme.radius.pill,
+                        backgroundColor: theme.colors.primary,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Plus size={15} color={theme.colors.onPrimary} strokeWidth={2.4} />
+                    </View>
+                  </PressableScale>
+                  <PressableScale onPress={() => habits.undoWater()} disabled={habits.waterMl <= 0}>
+                    <Body
+                      style={{
+                        color: theme.colors.textFaint,
+                        fontSize: theme.fontSize.xs,
+                        opacity: habits.waterMl <= 0 ? 0.4 : 1,
+                      }}
+                    >
+                      <Minus size={10} color={theme.colors.textFaint} strokeWidth={2.4} /> undo
+                    </Body>
+                  </PressableScale>
+                </View>
               </View>
             </View>
           </AnimatedCard>
