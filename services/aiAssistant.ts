@@ -19,19 +19,23 @@ export const AI_INFERENCE_AVAILABLE = Constants.executionEnvironment !== Executi
 
 export type ChatMessage = { id: string; role: 'user' | 'assistant'; text: string; sources?: SearchChunk[] };
 
-// 5 (up from 3): a well-grounded, richly-backed answer needs more than one supporting
-// excerpt to actually draw on — the system prompt now explicitly asks the model to
-// synthesize every excerpt that's genuinely on-topic rather than picking just one, and it
-// can't do that with too little material. This does cost more prefill time than 3 did;
-// n_ctx and MAX_RESPONSE_TOKENS in llm.ts were both re-tuned to match. Fine for the cloud
-// model (see ONLINE below) — Groq's own latency dwarfs the extra prefill. The on-device
-// model doesn't get that luxury; see OFFLINE_SEARCH_RESULT_LIMIT below.
-const SEARCH_RESULT_LIMIT = 5;
-// Every excerpt (~140 tokens each) is fixed prefill cost paid on a phone CPU with no
-// KV-cache reuse between questions (see llm.ts) — 2 fewer excerpts than the cloud path
-// gets, plus each one truncated (below), meaningfully cuts prefill on every single
-// offline question in exchange for a somewhat less richly-cross-referenced answer.
-const OFFLINE_SEARCH_RESULT_LIMIT = 3;
+// Bumped from 5 to 12 on request — with the app's full Bible/EGW/commentary/beliefs
+// content already indexed locally (see database/searchIndex.ts), there's no reason to
+// cap retrieval this low; a well-grounded, richly-backed answer needs more supporting
+// excerpts to actually draw on than a handful. This is the shared fetch from
+// content_search that both the online path and OFFLINE_SEARCH_RESULT_LIMIT below draw
+// from — Groq's own latency dwarfs the extra prefill this costs online, and its 131k-token
+// context window has no trouble holding 12 excerpts.
+const SEARCH_RESULT_LIMIT = 12;
+// Bumped from 3 to 8 on request (sloppy/inaccurate offline answers traced to too little
+// grounding material, not a model problem) — every excerpt (~90 tokens each at
+// OFFLINE_EXCERPT_MAX_CHARS below) is fixed prefill cost paid on a phone CPU with no
+// KV-cache reuse between questions (see llm.ts), so this is intentionally still below
+// SEARCH_RESULT_LIMIT rather than equal to it. Worst case (8 excerpts + system prompt +
+// question + 1 history turn) lands around ~1,250 tokens, comfortably inside llm.ts's
+// n_ctx: 3072 with room to spare for the response — raise n_ctx there too if this is
+// pushed higher.
+const OFFLINE_SEARCH_RESULT_LIMIT = 8;
 // Chunk text can run up to ~550 chars (a full EGW/commentary paragraph) — trimmed
 // per-excerpt for the offline model specifically, since a 1B model rarely needs the
 // entire paragraph to answer, and every character here is more prefill.
@@ -193,7 +197,12 @@ function formatRawChunks(chunks: SearchChunk[]): string {
 // wrong tool for it, so these two intents are detected and answered separately, before
 // ever reaching search.
 const LEADER_GUIDE_RE = /\bleader'?s?\s+guide\b|\bdiscussion\s+leader\b|\bhow\s+to\s+lead\b|\blead(ing)?\s+(this|the)\s+(discussion|lesson|class)\b/i;
-const WEEK_SUMMARY_RE = /\b(this|the)\s+week'?s?\s+(summary|overview)\b|\bsummar(y|ize)\b[\s\S]*\b(lesson|week)\b|\bweekly\s+summary\b/i;
+// Bounded-distance (rather than the old unbounded [\s\S]*) so "lesson"/"week" and
+// "summary"/"summarize"/"overview" can appear in EITHER order within ~30 chars of each
+// other — catches natural phrasings like "give me this week's lesson summary" (lesson,
+// then summary) as well as "summarize this week's lesson" (summary, then lesson), which
+// the old lesson-must-come-before-summary-only ordering missed entirely.
+const WEEK_SUMMARY_RE = /\b(lesson|week)\b[\s\S]{0,30}\b(summary|summarize|overview)\b|\b(summary|summarize|overview)\b[\s\S]{0,30}\b(lesson|week)\b/i;
 
 const NO_LESSON_DOWNLOADED_REPLY =
   "I don't see a Sabbath School lesson downloaded for this week — download this quarter under More → Sabbath School first, then ask again.";
@@ -204,6 +213,12 @@ const NO_LESSON_DOWNLOADED_REPLY =
 // for the small on-device model's context window, and the full week essentially
 // unabridged for the cloud model, which has no such constraint.
 const WEEKLY_LESSON_MAX_CHARS = { offline: 1800, online: 6000 };
+// The default Groq response cap (see MAX_RESPONSE_TOKENS in groqAssistant.ts) is tuned for
+// short Q&A and isn't enough room for a per-day breakdown across a full 7-day lesson —
+// generous enough that a full week (overview + per-day talking points + punchline + verse)
+// finishes without getting cut off mid-answer; Groq's own latency makes the extra length
+// essentially free.
+const WEEKLY_LESSON_ONLINE_MAX_TOKENS = 1500;
 
 async function answerAboutWeeklyLesson(
   db: SQLiteDatabase,
@@ -226,7 +241,7 @@ async function answerAboutWeeklyLesson(
   };
   const instruction =
     kind === 'summary'
-      ? "Summarize this week's Sabbath School lesson for someone who hasn't read it yet: the memory text, the key point of each day, and 4-5 discussion questions a class could use."
+      ? "Give a summary of this week's Sabbath School lesson for someone who hasn't read it yet. Start with the memory verse and a 2-3 sentence overview of the week's theme. Then, for each day in the lesson (using its own day title), give: 2-3 key talking points, and a short punchline — one memorable, quotable takeaway — with the specific Bible verse reference that backs it up. Only use verses that actually appear in the lesson text provided; don't invent references."
       : "I'm leading this week's Sabbath School discussion. Give me a leader's guide: an opening hook, how to walk the class through each day's key idea, and specific discussion questions to ask along the way.";
 
   if (answerMode === 'online') {
@@ -235,7 +250,7 @@ async function answerAboutWeeklyLesson(
       return;
     }
     try {
-      const rawText = await answerOnlineFromContext(instruction, [chunk], [], callbacks?.onToken);
+      const rawText = await answerOnlineFromContext(instruction, [chunk], [], callbacks?.onToken, WEEKLY_LESSON_ONLINE_MAX_TOKENS);
       const trimmed = rawText.trim();
       callbacks?.onSection?.(trimmed || "I'm not sure — I don't have a confident answer for that one.", [chunk]);
     } catch (error) {

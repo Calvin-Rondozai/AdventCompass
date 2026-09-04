@@ -1,15 +1,31 @@
 import type { SearchChunk } from '@/database/searchIndex';
 import type { ConversationTurn } from './llm';
 
-// Read from .env (git-ignored — see .env.example for the variable name only, never the
-// real value) via Expo's built-in EXPO_PUBLIC_* env var support, which inlines it into
-// the JS bundle at build time. There is no backend here to proxy this call through, so
-// this key ships inside the compiled app like any client-side secret does — it is not
+// Read from .env (git-ignored — see .env.example for the variable names only, never the
+// real values) via Expo's built-in EXPO_PUBLIC_* env var support, which inlines each one
+// into the JS bundle at build time. There is no backend here to proxy this call through, so
+// these keys ship inside the compiled app like any client-side secret does — not
 // meaningfully hidden from someone who has the installed app, only from source control.
-const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY;
+//
+// Multiple optional fallback keys (e.g. separate free-tier Groq accounts) — Expo's inliner
+// only rewrites literal `process.env.EXPO_PUBLIC_X` references, so this can't be a loop
+// over a dynamic name; each slot is a separate literal reference. Add more the same way
+// (EXPO_PUBLIC_GROQ_API_KEY_5, ...) if needed. Empty/unset slots are filtered out below, so
+// it's fine to leave any of these blank in .env.
+const GROQ_API_KEYS = [
+  process.env.EXPO_PUBLIC_GROQ_API_KEY,
+  process.env.EXPO_PUBLIC_GROQ_API_KEY_2,
+  process.env.EXPO_PUBLIC_GROQ_API_KEY_3,
+  process.env.EXPO_PUBLIC_GROQ_API_KEY_4,
+].filter((k): k is string => !!k && k.trim().length > 0);
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-// Groq's current production Llama model — update here if Groq retires/renames it.
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
+// Groq retired llama-3.3-70b-versatile (confirmed via /v1/models — no longer in this key's
+// accessible list as of 2026-09-04). Replaced with Groq's current large general-purpose model.
+// It's a reasoning model, so `reasoning_effort: 'low'` below is required — without it, the
+// model can burn the entire max_tokens budget on hidden reasoning before emitting any visible
+// `content`, producing an empty answer (reproduced during testing: default effort + 20
+// max_tokens returned finish_reason "length" with content: "").
+const GROQ_MODEL = 'openai/gpt-oss-120b';
 // Lower than the offline path's ceiling on purpose — Groq's own generation is already
 // fast (LPU inference, hundreds of tokens/sec), so this isn't really a speed lever; it's
 // a length lever, capping how long an answer is allowed to run on. Paired with the
@@ -17,7 +33,7 @@ const GROQ_MODEL = 'llama-3.3-70b-versatile';
 // point rather than the offline model's more padded, multi-paragraph style.
 const MAX_RESPONSE_TOKENS = 450;
 
-export const GROQ_AVAILABLE = !!GROQ_API_KEY;
+export const GROQ_AVAILABLE = GROQ_API_KEYS.length > 0;
 
 // Online mode uses a much larger cloud model than the on-device ~1B one (see llm.ts), so
 // unlike the offline prompt it's allowed to draw on the model's own broader knowledge of
@@ -73,44 +89,38 @@ reference rather than inventing a quotation.`;
 
 type GroqChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
-// Streamed via `stream: true` + Server-Sent Events rather than one plain awaited
-// fetch — Groq's own generation is fast, but waiting for the ENTIRE response before
-// showing anything (the previous version) meant the UI sat on a bare "thinking"
-// bubble for the whole round-trip, which read as slow regardless of how fast Groq
-// actually was. Streaming tokens in live, the same way the offline path already
+// Carries the HTTP status alongside the message so the multi-key retry loop below can
+// tell "this key is out of quota / invalid" (401/429 — worth trying the next key) apart
+// from any other failure (a real server error, a malformed request) that another key
+// wouldn't fix either.
+class GroqHttpError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+// One request against one key. Streamed via `stream: true` + Server-Sent Events rather
+// than one plain awaited fetch — Groq's own generation is fast, but waiting for the
+// ENTIRE response before showing anything (the previous version) meant the UI sat on a
+// bare "thinking" bubble for the whole round-trip, which read as slow regardless of how
+// fast Groq actually was. Streaming tokens in live, the same way the offline path already
 // does via llm.ts's onToken callback, is what actually fixes the *perceived* speed.
 //
 // React Native's fetch doesn't reliably expose a readable stream body across
 // platforms in this Expo/RN version, so this uses XMLHttpRequest instead — its
 // `responseText` grows incrementally as data arrives and `onprogress` fires on each
 // chunk, which is the standard, dependency-free way to consume SSE in React Native.
-export function answerOnlineFromContext(
-  question: string,
-  chunks: SearchChunk[],
-  history: ConversationTurn[] = [],
+function sendGroqRequest(
+  apiKey: string,
+  messages: GroqChatMessage[],
+  maxTokens: number,
   onToken?: (partialText: string) => void
 ): Promise<string> {
-  if (!GROQ_API_KEY) return Promise.reject(new Error('Online AI is not configured (missing API key).'));
-
-  const excerpts = chunks.map((c, i) => `[${i + 1}] (${c.title}) ${c.text}`).join('\n\n');
-  const basePrompt = chunks.length
-    ? `Excerpts from this app's content:\n${excerpts}\n\nQuestion: ${question}`
-    : `Question: ${question}`;
-
-  const messages: GroqChatMessage[] = [
-    { role: 'system', content: SYSTEM_PROMPT },
-    ...history.flatMap((turn): GroqChatMessage[] => [
-      { role: 'user', content: turn.question },
-      { role: 'assistant', content: turn.answer },
-    ]),
-    { role: 'user', content: basePrompt },
-  ];
-
   return new Promise<string>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', GROQ_API_URL);
     xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.setRequestHeader('Authorization', `Bearer ${GROQ_API_KEY}`);
+    xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`);
 
     let accumulated = '';
     let processedLength = 0;
@@ -146,7 +156,11 @@ export function answerOnlineFromContext(
 
     xhr.onload = () => {
       if (xhr.status < 200 || xhr.status >= 300) {
-        reject(new Error(`Groq API error ${xhr.status}: ${xhr.responseText.slice(0, 300)}`));
+        // A 401/429 arrives as one immediate JSON error body, before any `data:` SSE
+        // line — so `accumulated` is always still empty here on that path, meaning the
+        // retry loop below never re-sends a request after any visible text has already
+        // started streaming to the user.
+        reject(new GroqHttpError(xhr.status, `Groq API error ${xhr.status}: ${xhr.responseText.slice(0, 300)}`));
         return;
       }
       const trimmed = accumulated.trim();
@@ -165,11 +179,67 @@ export function answerOnlineFromContext(
         model: GROQ_MODEL,
         messages,
         temperature: 0.3,
-        max_tokens: MAX_RESPONSE_TOKENS,
+        max_tokens: maxTokens,
+        reasoning_effort: 'low',
         stream: true,
       })
     );
   });
+}
+
+// Which key slot (index into GROQ_API_KEYS) worked last time — each new question starts
+// there instead of always retrying from key 0, so once a key is known exhausted for this
+// app session, later questions don't keep re-discovering that the same time via a wasted
+// 429 round-trip first. Resets to 0 on app restart, which is fine — Groq's free-tier caps
+// are daily/per-minute, so a restart is a reasonable point to give an earlier key another
+// chance.
+let activeKeyIndex = 0;
+
+export async function answerOnlineFromContext(
+  question: string,
+  chunks: SearchChunk[],
+  history: ConversationTurn[] = [],
+  onToken?: (partialText: string) => void,
+  // Overridable per-call: a normal Q&A answer is deliberately kept short (see
+  // MAX_RESPONSE_TOKENS above), but a structured multi-day breakdown (the weekly Sabbath
+  // School summary/leader's-guide — see aiAssistant.ts) needs far more room or it gets cut
+  // off partway through the week.
+  maxTokens: number = MAX_RESPONSE_TOKENS
+): Promise<string> {
+  if (!GROQ_API_KEYS.length) throw new Error('Online AI is not configured (missing API key).');
+
+  const excerpts = chunks.map((c, i) => `[${i + 1}] (${c.title}) ${c.text}`).join('\n\n');
+  const basePrompt = chunks.length
+    ? `Excerpts from this app's content:\n${excerpts}\n\nQuestion: ${question}`
+    : `Question: ${question}`;
+
+  const messages: GroqChatMessage[] = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...history.flatMap((turn): GroqChatMessage[] => [
+      { role: 'user', content: turn.question },
+      { role: 'assistant', content: turn.answer },
+    ]),
+    { role: 'user', content: basePrompt },
+  ];
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt < GROQ_API_KEYS.length; attempt++) {
+    const keyIndex = (activeKeyIndex + attempt) % GROQ_API_KEYS.length;
+    try {
+      const result = await sendGroqRequest(GROQ_API_KEYS[keyIndex], messages, maxTokens, onToken);
+      activeKeyIndex = keyIndex;
+      return result;
+    } catch (err) {
+      lastError = err;
+      // Only 401 (bad/revoked key) and 429 (quota/rate-limit exhausted) mean "try the
+      // next key" — anything else (network failure, a genuine 5xx, a malformed request)
+      // would fail identically on every other key too, so surface it immediately instead
+      // of burning through the whole list on a problem no key can fix.
+      const status = err instanceof GroqHttpError ? err.status : undefined;
+      if (status !== 401 && status !== 429) throw err;
+    }
+  }
+  throw lastError;
 }
 
 // Raw errors here are either a fetch-level network exception or our own thrown Error
@@ -189,5 +259,11 @@ export function describeGroqError(err: unknown): string {
   if (/timed? ?out/.test(lower)) {
     return 'The request timed out. Check your connection and try again.';
   }
-  return "Couldn't reach the online AI right now. Try again, or switch to offline mode.";
+  // Anything else (a 400/403/404/500 from Groq, an unexpected exception, etc.) used to
+  // fall through to a fully generic message with zero diagnostic value — genuinely
+  // impossible to tell "bad API key that isn't literally a 401", "model access denied",
+  // "malformed request" and "actually just a transient server error" apart from the same
+  // wording. Surfacing the real detail (truncated — this can be a full response body)
+  // makes this debuggable the next time it happens instead of a black box.
+  return `Couldn't reach the online AI right now (${raw.slice(0, 200)}). Try again, or switch to offline mode.`;
 }
