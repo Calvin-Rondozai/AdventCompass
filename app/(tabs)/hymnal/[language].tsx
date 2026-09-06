@@ -1,16 +1,18 @@
-import React, { useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { ChevronRight, Heart, Search as SearchIcon, X } from '@/components/ui/Icon';
+import { Grid3x3, Heart, Library, Search as SearchIcon, X } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
-import { getHymns, HYMNALS, HymnalLanguage } from '@/database/hymnal';
+import { getHymns, HYMNAL_LAST_LANGUAGE_KEY, HYMNALS, HymnalLanguage } from '@/database/hymnal';
 import { getFavoriteHymnNumbers, toggleHymnFavorite } from '@/database/hymnFavorites';
-import { HymnNumberJump } from '@/components/bible/HymnNumberJump';
+import { setKv } from '@/database/kv';
+import { HymnNumberJump, HymnNumberJumpHandle } from '@/components/bible/HymnNumberJump';
+import { HymnalLanguageSheet, HymnalLanguageSheetHandle } from '@/components/hymnal/HymnalLanguageSheet';
 import { PressableScale } from '@/components/ui/PressableScale';
-import { Body } from '@/components/ui/Typography';
+import { Body, Heading } from '@/components/ui/Typography';
 
 export default function HymnalListScreen() {
   const theme = useTheme();
@@ -21,10 +23,16 @@ export default function HymnalListScreen() {
   const info = HYMNALS.find((h) => h.code === lang);
   const hymns = getHymns(lang);
 
+  const jumpRef = useRef<HymnNumberJumpHandle>(null);
+  const languageSheetRef = useRef<HymnalLanguageSheetHandle>(null);
+
   const [showSearch, setShowSearch] = useState(false);
   const [query, setQuery] = useState('');
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
-  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+
+  useEffect(() => {
+    setKv(db, HYMNAL_LAST_LANGUAGE_KEY, lang).catch(() => {});
+  }, [db, lang]);
 
   useFocusEffect(
     useCallback(() => {
@@ -48,11 +56,9 @@ export default function HymnalListScreen() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    let list = hymns;
-    if (showFavoritesOnly) list = list.filter((h) => favorites.has(h.number));
-    if (q) list = list.filter((h) => h.title.toLowerCase().includes(q) || h.lyrics.toLowerCase().includes(q));
-    return list;
-  }, [hymns, query, showFavoritesOnly, favorites]);
+    if (!q) return hymns;
+    return hymns.filter((h) => h.title.toLowerCase().includes(q) || h.lyrics.toLowerCase().includes(q));
+  }, [hymns, query]);
 
   const goToHymn = (number: number) => {
     router.push({ pathname: '/hymnal/[language]/[number]', params: { language: lang, number: String(number) } });
@@ -60,17 +66,9 @@ export default function HymnalListScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: info?.label ?? 'Hymnal',
+      title: '',
       headerRight: () => (
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <PressableScale onPress={() => setShowFavoritesOnly((v) => !v)} style={{ padding: theme.spacing.xs }}>
-            <Heart
-              size={20}
-              color={showFavoritesOnly ? theme.colors.danger : theme.colors.text}
-              fill={showFavoritesOnly ? theme.colors.danger : undefined}
-              strokeWidth={1.75}
-            />
-          </PressableScale>
           <PressableScale
             onPress={() => {
               setShowSearch((v) => !v);
@@ -84,13 +82,25 @@ export default function HymnalListScreen() {
               <SearchIcon size={20} color={theme.colors.text} strokeWidth={1.75} />
             )}
           </PressableScale>
+          <PressableScale onPress={() => jumpRef.current?.open()} style={{ padding: theme.spacing.xs }}>
+            <Grid3x3 size={20} color={theme.colors.text} strokeWidth={1.75} />
+          </PressableScale>
+          <PressableScale onPress={() => languageSheetRef.current?.open()} style={{ padding: theme.spacing.xs }}>
+            <Library size={20} color={theme.colors.text} strokeWidth={1.75} />
+          </PressableScale>
         </View>
       ),
     });
-  }, [navigation, info, theme, showSearch, showFavoritesOnly]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation, theme, showSearch]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>
+      <View style={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md }}>
+        <Heading style={{ fontSize: theme.fontSize.xxl }}>{info?.label ?? 'Hymnal'}</Heading>
+        <View style={{ width: 48, height: 3, borderRadius: 2, backgroundColor: theme.colors.accent, marginTop: theme.spacing.sm }} />
+      </View>
+
       {showSearch && (
         <View style={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.sm }}>
           <View
@@ -125,15 +135,8 @@ export default function HymnalListScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(h) => String(h.number)}
-        contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}
-        ListEmptyComponent={
-          showFavoritesOnly ? (
-            <Body style={{ color: theme.colors.textMuted, textAlign: 'center', marginTop: theme.spacing.xl }}>
-              No favorite hymns yet — tap the heart on a hymn to add one.
-            </Body>
-          ) : null
-        }
-        renderItem={({ item }) => {
+        contentContainerStyle={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.xxl }}
+        renderItem={({ item, index }) => {
           const isFavorite = favorites.has(item.number);
           return (
             <PressableScale onPress={() => goToHymn(item.number)} scaleTo={0.99}>
@@ -141,14 +144,12 @@ export default function HymnalListScreen() {
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
-                  backgroundColor: theme.colors.surface,
-                  borderRadius: theme.radius.lg,
-                  padding: theme.spacing.md,
-                  marginBottom: theme.spacing.sm,
-                  ...theme.shadow.subtle,
+                  paddingVertical: theme.spacing.md,
+                  borderBottomWidth: index === filtered.length - 1 ? 0 : 1,
+                  borderBottomColor: theme.colors.border,
                 }}
               >
-                <Body style={{ width: 32, color: theme.colors.textFaint, fontFamily: theme.fontFamily.sansSemiBold }}>
+                <Body style={{ width: 40, color: theme.colors.textFaint, fontFamily: theme.fontFamily.sansSemiBold }}>
                   {item.number}
                 </Body>
                 <Body style={{ flex: 1, fontFamily: theme.fontFamily.sansMedium }}>{item.title}</Body>
@@ -160,14 +161,14 @@ export default function HymnalListScreen() {
                     strokeWidth={1.75}
                   />
                 </PressableScale>
-                <ChevronRight size={16} color={theme.colors.textFaint} />
               </View>
             </PressableScale>
           );
         }}
       />
 
-      <HymnNumberJump language={lang} />
+      <HymnNumberJump ref={jumpRef} language={lang} hideTrigger />
+      <HymnalLanguageSheet ref={languageSheetRef} currentLanguage={lang} />
     </SafeAreaView>
   );
 }

@@ -3,7 +3,7 @@ import { FlatList, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { ChevronRight, Heart } from '@/components/ui/Icon';
+import { Heart } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { getHymn, HYMNALS } from '@/database/hymnal';
@@ -35,13 +35,13 @@ export default function HymnFavoritesScreen() {
       <FlatList
         data={favorites}
         keyExtractor={(f) => String(f.number)}
-        contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}
+        contentContainerStyle={{ paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}
         ListEmptyComponent={
           <Body style={{ color: theme.colors.textMuted, textAlign: 'center', marginTop: theme.spacing.xl }}>
             No favorite hymns yet — open a hymn and tap the heart to add one.
           </Body>
         }
-        renderItem={({ item }) => {
+        renderItem={({ item, index }) => {
           const hymn = getHymn(item.language, item.number);
           const languageLabel = HYMNALS.find((h) => h.code === item.language)?.label ?? item.language;
           return (
@@ -55,14 +55,12 @@ export default function HymnFavoritesScreen() {
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
-                  backgroundColor: theme.colors.surface,
-                  borderRadius: theme.radius.lg,
-                  padding: theme.spacing.md,
-                  marginBottom: theme.spacing.sm,
-                  ...theme.shadow.subtle,
+                  paddingVertical: theme.spacing.md,
+                  borderBottomWidth: index === favorites.length - 1 ? 0 : 1,
+                  borderBottomColor: theme.colors.border,
                 }}
               >
-                <Body style={{ width: 32, color: theme.colors.textFaint, fontFamily: theme.fontFamily.sansSemiBold }}>
+                <Body style={{ width: 40, color: theme.colors.textFaint, fontFamily: theme.fontFamily.sansSemiBold }}>
                   {item.number}
                 </Body>
                 <View style={{ flex: 1 }}>
@@ -72,7 +70,6 @@ export default function HymnFavoritesScreen() {
                 <PressableScale onPress={() => handleRemove(item)} scaleTo={0.8} style={{ padding: 4 }}>
                   <Heart size={18} color={theme.colors.danger} fill={theme.colors.danger} strokeWidth={1.75} />
                 </PressableScale>
-                <ChevronRight size={16} color={theme.colors.textFaint} />
               </View>
             </PressableScale>
           );

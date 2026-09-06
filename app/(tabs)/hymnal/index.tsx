@@ -1,66 +1,28 @@
-import React from 'react';
-import { ScrollView, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useEffect } from 'react';
 import { router } from 'expo-router';
-import { ChevronRight, Heart, Music } from '@/components/ui/Icon';
+import { useSQLiteContext } from 'expo-sqlite';
 
-import { useTheme } from '@/theme/ThemeProvider';
-import { HYMNALS } from '@/database/hymnal';
-import { PressableScale } from '@/components/ui/PressableScale';
-import { Body, Label } from '@/components/ui/Typography';
+import { getKv } from '@/database/kv';
+import { HYMNAL_LAST_LANGUAGE_KEY, HymnalLanguage } from '@/database/hymnal';
+import { PageLoader } from '@/components/ui/PageLoader';
 
-export default function HymnalLanguagesScreen() {
-  const theme = useTheme();
+// The hymnal tab no longer has its own language-picker landing screen — it opens
+// straight into whichever hymnal you read last (see HymnalLanguageSheet for switching),
+// defaulting to English the first time.
+export default function HymnalIndexRedirect() {
+  const db = useSQLiteContext();
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>
-      <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.sm, paddingBottom: theme.spacing.xxl }}>
-        <PressableScale onPress={() => router.push('/hymnal/favorites')} scaleTo={0.99}>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              backgroundColor: theme.colors.surface,
-              borderRadius: theme.radius.lg,
-              padding: theme.spacing.md,
-              ...theme.shadow.subtle,
-            }}
-          >
-            <Heart size={26} color={theme.colors.accent} strokeWidth={1.75} fill={theme.colors.accent} />
-            <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
-              <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>Favorites</Body>
-              <Label style={{ marginTop: 2 }}>Hymns you've marked, across every language</Label>
-            </View>
-            <ChevronRight size={18} color={theme.colors.textFaint} />
-          </View>
-        </PressableScale>
+  useEffect(() => {
+    let cancelled = false;
+    getKv(db, HYMNAL_LAST_LANGUAGE_KEY).then((value) => {
+      if (cancelled) return;
+      const lang: HymnalLanguage = value === 'shona' || value === 'ndebele' ? value : 'english';
+      router.replace({ pathname: '/hymnal/[language]', params: { language: lang } });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [db]);
 
-        {HYMNALS.map((hymnal) => (
-          <PressableScale
-            key={hymnal.code}
-            onPress={() => router.push({ pathname: '/hymnal/[language]', params: { language: hymnal.code } })}
-            scaleTo={0.99}
-          >
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.lg,
-                padding: theme.spacing.md,
-                ...theme.shadow.subtle,
-              }}
-            >
-              <Music size={26} color={theme.colors.primary} strokeWidth={1.75} />
-              <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
-                <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>{hymnal.label}</Body>
-                <Label style={{ marginTop: 2 }}>{hymnal.source}</Label>
-              </View>
-              <ChevronRight size={18} color={theme.colors.textFaint} />
-            </View>
-          </PressableScale>
-        ))}
-      </ScrollView>
-    </SafeAreaView>
-  );
+  return <PageLoader />;
 }

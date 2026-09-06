@@ -1,16 +1,19 @@
-import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
-import { ScrollView } from 'react-native';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { runOnJS } from 'react-native-reanimated';
-import { Heart } from '@/components/ui/Icon';
+import { Heart, Library, Play } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { getHymn, HymnalLanguage } from '@/database/hymnal';
 import { toggleHymnFavorite, getFavoriteHymnNumbers } from '@/database/hymnFavorites';
+import { getHymnNote } from '@/database/hymnNotes';
 import { HymnNumberJump } from '@/components/bible/HymnNumberJump';
+import { HymnalLanguageSheet, HymnalLanguageSheetHandle } from '@/components/hymnal/HymnalLanguageSheet';
+import { showAlert } from '@/components/ui/AppAlert';
 import { PageLoader } from '@/components/ui/PageLoader';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body, Heading } from '@/components/ui/Typography';
@@ -26,6 +29,7 @@ export default function HymnDetailScreen() {
   const prevHymn = getHymn(lang, num - 1);
   const nextHymn = getHymn(lang, num + 1);
   const [isFavorite, setIsFavorite] = useState(false);
+  const languageSheetRef = useRef<HymnalLanguageSheetHandle>(null);
 
   useEffect(() => {
     getFavoriteHymnNumbers(db).then((favorites) => setIsFavorite(favorites.has(num)));
@@ -35,21 +39,36 @@ export default function HymnDetailScreen() {
     toggleHymnFavorite(db, lang, num).then(setIsFavorite);
   }, [db, lang, num]);
 
+  // No sheet-music/audio is attached to any hymn — a prior attempt at importing them
+  // from a numbered-only source (no titles to verify against) turned out mismatched and
+  // was removed. This is a placeholder until a source that can be verified is found.
+  const handlePlay = useCallback(() => {
+    showAlert('Audio not available', "Sheet music and MIDI playback for this hymn haven't been added yet.");
+  }, []);
+
   useLayoutEffect(() => {
     navigation.setOptions({
       title: hymn ? `${hymn.number}. ${hymn.title}` : '',
       headerRight: () => (
-        <PressableScale onPress={handleToggleFavorite} style={{ padding: theme.spacing.xs }}>
-          <Heart
-            size={20}
-            color={isFavorite ? theme.colors.danger : theme.colors.text}
-            fill={isFavorite ? theme.colors.danger : undefined}
-            strokeWidth={1.75}
-          />
-        </PressableScale>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <PressableScale onPress={handlePlay} style={{ padding: theme.spacing.xs }}>
+            <Play size={20} color={theme.colors.text} strokeWidth={1.75} />
+          </PressableScale>
+          <PressableScale onPress={handleToggleFavorite} style={{ padding: theme.spacing.xs }}>
+            <Heart
+              size={20}
+              color={isFavorite ? theme.colors.danger : theme.colors.text}
+              fill={isFavorite ? theme.colors.danger : undefined}
+              strokeWidth={1.75}
+            />
+          </PressableScale>
+          <PressableScale onPress={() => languageSheetRef.current?.open()} style={{ padding: theme.spacing.xs }}>
+            <Library size={20} color={theme.colors.text} strokeWidth={1.75} />
+          </PressableScale>
+        </View>
       ),
     });
-  }, [navigation, hymn, theme, isFavorite, handleToggleFavorite]);
+  }, [navigation, hymn, theme, isFavorite, handleToggleFavorite, handlePlay]);
 
   const goToHymn = useCallback(
     (target: number | undefined) => {
@@ -73,11 +92,50 @@ export default function HymnDetailScreen() {
 
   if (!hymn) return <PageLoader />;
 
+  const note = getHymnNote(num);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>
       <GestureDetector gesture={swipeGesture}>
         <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}>
           <Heading style={{ marginBottom: theme.spacing.md }}>{hymn.title}</Heading>
+
+          {note && (
+            <View
+              style={{
+                marginBottom: theme.spacing.lg,
+                paddingBottom: theme.spacing.md,
+                borderBottomWidth: 1,
+                borderBottomColor: theme.colors.border,
+              }}
+            >
+              {(note.author || note.composer) && (
+                <Body style={{ fontSize: theme.fontSize.sm, color: theme.colors.textMuted }}>
+                  {[note.author && `Words: ${note.author}`, note.composer && `Music: ${note.composer}`]
+                    .filter(Boolean)
+                    .join('   ·   ')}
+                </Body>
+              )}
+              {note.verseText && (
+                <Body
+                  style={{
+                    fontFamily: theme.fontFamily.serifItalic,
+                    fontSize: theme.fontSize.sm,
+                    color: theme.colors.textMuted,
+                    marginTop: theme.spacing.xs,
+                  }}
+                >
+                  “{note.verseText}”{note.verseRef ? ` — ${note.verseRef}` : ''}
+                </Body>
+              )}
+              {note.copyright && (
+                <Body style={{ fontSize: theme.fontSize.xs, color: theme.colors.textFaint, marginTop: theme.spacing.xs }}>
+                  {note.copyright}
+                </Body>
+              )}
+            </View>
+          )}
+
           {hymn.lyrics.split('\n').map((line, i) => {
             const isChorus = /^chorus[:.]?\s*$/i.test(line.trim());
             return (
@@ -97,6 +155,7 @@ export default function HymnDetailScreen() {
       </GestureDetector>
 
       <HymnNumberJump language={lang} replaceNavigation />
+      <HymnalLanguageSheet ref={languageSheetRef} currentLanguage={lang} hymnNumber={num} />
     </SafeAreaView>
   );
 }

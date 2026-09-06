@@ -13,6 +13,10 @@ export const HYMNALS: HymnalInfo[] = [
   { code: 'ndebele', label: 'isiNdebele', source: 'UKrestu Esihlabelelweni' },
 ];
 
+// Remembers which hymnal language the landing screen (app/(tabs)/hymnal/index.tsx,
+// which just redirects to it) should open by default.
+export const HYMNAL_LAST_LANGUAGE_KEY = 'hymnal_last_language';
+
 // Each hymnal is loaded lazily on first access (rather than as a top-level import)
 // so its JSON isn't parsed and held in memory unless the user actually opens it.
 const HYMN_DATA: Partial<Record<HymnalLanguage, Hymn[]>> = {};

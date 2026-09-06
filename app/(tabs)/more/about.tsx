@@ -2,7 +2,7 @@ import React from 'react';
 import { Image, Linking, Share, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
-import { ChevronRight, Mail, ShareIcon, User } from '@/components/ui/Icon';
+import { BookOpen, ChevronRight, Mail, ShareIcon, User } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -25,6 +25,12 @@ export default function AboutScreen() {
     { icon: User, label: 'Developer', value: DEVELOPER },
     { icon: Mail, label: 'Contact', value: CONTACT_EMAIL, onPress: () => Linking.openURL(`mailto:${CONTACT_EMAIL}`) },
     { icon: ShareIcon, label: 'Share', value: 'Share this app with others', onPress: handleShare },
+    {
+      icon: BookOpen,
+      label: 'Hymn notes',
+      value: 'Author, composer & scripture credits from Advent Hymnals (adventhymnals.org)',
+      onPress: () => Linking.openURL('https://adventhymnals.org'),
+    },
   ];
 
   return (

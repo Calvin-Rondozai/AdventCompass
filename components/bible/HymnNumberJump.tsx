@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { forwardRef, useImperativeHandle, useState } from 'react';
 import { Modal, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Delete, Grid3x3 } from '@/components/ui/Icon';
@@ -10,13 +10,26 @@ import { Body, Heading } from '@/components/ui/Typography';
 
 const DIAL_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'];
 
-type Props = { language: HymnalLanguage; replaceNavigation?: boolean };
+export type HymnNumberJumpHandle = { open: () => void };
 
-export function HymnNumberJump({ language, replaceNavigation }: Props) {
+type Props = {
+  language: HymnalLanguage;
+  replaceNavigation?: boolean;
+  // List screen puts the trigger in its header instead of a floating button — it opens
+  // this same dial pad via the ref rather than rendering its own button.
+  hideTrigger?: boolean;
+};
+
+export const HymnNumberJump = forwardRef<HymnNumberJumpHandle, Props>(function HymnNumberJump(
+  { language, replaceNavigation, hideTrigger },
+  ref
+) {
   const theme = useTheme();
   const [visible, setVisible] = useState(false);
   const [numberInput, setNumberInput] = useState('');
   const [error, setError] = useState(false);
+
+  useImperativeHandle(ref, () => ({ open: () => setVisible(true) }), []);
 
   const handleJump = (num: number) => {
     const target = getHymn(language, num);
@@ -43,24 +56,26 @@ export function HymnNumberJump({ language, replaceNavigation }: Props) {
 
   return (
     <>
-      <PressableScale
-        onPress={() => setVisible(true)}
-        style={{ position: 'absolute', right: theme.spacing.lg, bottom: theme.spacing.xxl + theme.spacing.lg }}
-      >
-        <View
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: theme.radius.pill,
-            backgroundColor: theme.colors.accent,
-            alignItems: 'center',
-            justifyContent: 'center',
-            ...theme.shadow.floating,
-          }}
+      {!hideTrigger && (
+        <PressableScale
+          onPress={() => setVisible(true)}
+          style={{ position: 'absolute', right: theme.spacing.lg, bottom: theme.spacing.xxl + theme.spacing.lg }}
         >
-          <Grid3x3 size={24} color={theme.colors.onAccent} strokeWidth={2.2} />
-        </View>
-      </PressableScale>
+          <View
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: theme.radius.pill,
+              backgroundColor: theme.colors.accent,
+              alignItems: 'center',
+              justifyContent: 'center',
+              ...theme.shadow.floating,
+            }}
+          >
+            <Grid3x3 size={24} color={theme.colors.onAccent} strokeWidth={2.2} />
+          </View>
+        </PressableScale>
+      )}
 
       <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
         <Pressable
@@ -144,4 +159,4 @@ export function HymnNumberJump({ language, replaceNavigation }: Props) {
       </Modal>
     </>
   );
-}
+});
