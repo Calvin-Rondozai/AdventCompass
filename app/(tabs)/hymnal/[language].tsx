@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, TextInput, View } from 'react-native';
+import { FlatList, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -12,7 +12,7 @@ import { setKv } from '@/database/kv';
 import { HymnNumberJump, HymnNumberJumpHandle } from '@/components/bible/HymnNumberJump';
 import { HymnalLanguageSheet, HymnalLanguageSheetHandle } from '@/components/hymnal/HymnalLanguageSheet';
 import { PressableScale } from '@/components/ui/PressableScale';
-import { Body, Heading } from '@/components/ui/Typography';
+import { Body } from '@/components/ui/Typography';
 
 export default function HymnalListScreen() {
   const theme = useTheme();
@@ -66,7 +66,14 @@ export default function HymnalListScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: '',
+      headerTitle: () => (
+        <View>
+          <Text style={{ color: theme.colors.text, fontFamily: theme.fontFamily.sansBold, fontSize: theme.fontSize.lg }}>
+            {info?.label ?? 'Hymnal'}
+          </Text>
+          <View style={{ width: 40, height: 3, borderRadius: 2, backgroundColor: theme.colors.accent, marginTop: 4 }} />
+        </View>
+      ),
       headerRight: () => (
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <PressableScale
@@ -92,15 +99,10 @@ export default function HymnalListScreen() {
       ),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigation, theme, showSearch]);
+  }, [navigation, theme, showSearch, info]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>
-      <View style={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md }}>
-        <Heading style={{ fontSize: theme.fontSize.xxl }}>{info?.label ?? 'Hymnal'}</Heading>
-        <View style={{ width: 48, height: 3, borderRadius: 2, backgroundColor: theme.colors.accent, marginTop: theme.spacing.sm }} />
-      </View>
-
       {showSearch && (
         <View style={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.sm }}>
           <View
