@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Modal, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, View } from 'react-native';
+import { BackHandler, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, ScrollView, ToastAndroid, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { runOnJS } from 'react-native-reanimated';
-import { ArrowLeft, Bookmark, Columns, ChevronDown, Library, Link2, NotebookPen, Palette, Volume2, X } from '@/components/ui/Icon';
+import * as Clipboard from 'expo-clipboard';
+import { ArrowLeft, Bookmark, Columns, ChevronDown, Copy, Library, Link2, NotebookPen, Palette, Volume2, X } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { getChapterVerses, Verse } from '@/database/bible';
@@ -370,6 +371,21 @@ export default function ChapterReaderScreen() {
     }, [db, book, chapter])
   );
 
+  const handleCopySelection = useCallback(async () => {
+    const versesArr = [...selectedVerses].sort((a, b) => a - b);
+    const selectedTexts = versesArr
+      .map((v) => verses.find((x) => x.verse === v))
+      .filter((v): v is Verse => !!v)
+      .map((v) => `${v.verse} ${v.text}`);
+    const isContiguous = versesArr.every((v, i) => i === 0 || v === versesArr[i - 1] + 1);
+    const verseLabel =
+      isContiguous && versesArr.length > 1 ? `${versesArr[0]}-${versesArr[versesArr.length - 1]}` : versesArr.join(',');
+    const reference = `${getLocalizedBookName(translation, book)} ${chapter}:${verseLabel} (${translation})`;
+    await Clipboard.setStringAsync(`${selectedTexts.join(' ')}\n\n${reference}`);
+    if (Platform.OS === 'android') ToastAndroid.show('Copied to clipboard', ToastAndroid.SHORT);
+    clearSelection();
+  }, [selectedVerses, verses, book, chapter, translation, clearSelection]);
+
   const handleAddNoteFromSelection = useCallback(() => {
     const versesArr = [...selectedVerses];
     clearSelection();
@@ -662,6 +678,9 @@ export default function ChapterReaderScreen() {
             <Body style={{ flex: 1, color: theme.colors.textMuted, fontSize: theme.fontSize.sm }}>
               {selectedVerses.size} verse{selectedVerses.size > 1 ? 's' : ''} selected
             </Body>
+            <PressableScale onPress={handleCopySelection} style={{ padding: theme.spacing.xs }}>
+              <Copy size={20} color={theme.colors.primary} strokeWidth={1.75} />
+            </PressableScale>
             <PressableScale onPress={handleBookmarkSelection} style={{ padding: theme.spacing.xs }}>
               <Bookmark size={20} color={theme.colors.accent} strokeWidth={1.75} />
             </PressableScale>
