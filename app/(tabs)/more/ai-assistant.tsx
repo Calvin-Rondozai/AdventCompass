@@ -27,10 +27,10 @@ import { AnswerMode, getAnswerMode, setAnswerMode } from '@/services/aiSettings'
 import { GROQ_AVAILABLE } from '@/services/groqAssistant';
 import { clearChatHistory, loadChatHistory, saveChatHistory } from '@/services/aiChatHistory';
 import { ensureSearchIndexBuilt, resolveSourceLink, SearchChunk } from '@/database/searchIndex';
-import { findScriptureRefs } from '@/database/scriptureRefs';
 import { showAlert } from '@/components/ui/AppAlert';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { AISettingsSheet } from '@/components/ai/AISettingsSheet';
+import { FormattedMessage } from '@/components/ai/FormattedMessage';
 import { VersePopup, VerseRef } from '@/components/bible/VersePopup';
 import { Body, Label } from '@/components/ui/Typography';
 import { newLocalId } from '@/utils/localId';
@@ -85,32 +85,6 @@ function formatTime(date: Date): string {
   const period = h >= 12 ? 'PM' : 'AM';
   const hour12 = h % 12 === 0 ? 12 : h % 12;
   return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
-}
-
-// A cited verse ("John 3:16", "Rom. 5:8") anywhere in an assistant answer becomes
-// tappable, popping up that verse right here instead of the reply just naming a
-// reference the user has to go look up themselves — same pattern already used for
-// commentary entries and Sabbath School lesson text (see findScriptureRefs).
-function renderMessageText(text: string, linkColor: string, onPressRef: (ref: VerseRef) => void) {
-  const refs = findScriptureRefs(text);
-  if (refs.length === 0) return text;
-  const nodes: React.ReactNode[] = [];
-  let cursor = 0;
-  refs.forEach((ref, i) => {
-    if (ref.start > cursor) nodes.push(text.slice(cursor, ref.start));
-    nodes.push(
-      <Body
-        key={i}
-        style={{ color: linkColor, textDecorationLine: 'underline' }}
-        onPress={() => onPressRef({ book: ref.book, chapter: ref.chapter, verse: ref.verse, verseEnd: ref.verseEnd })}
-      >
-        {ref.text}
-      </Body>
-    );
-    cursor = ref.end;
-  });
-  if (cursor < text.length) nodes.push(text.slice(cursor));
-  return nodes;
 }
 
 // Pairs each user message with the assistant message immediately following it — a
@@ -223,7 +197,7 @@ function AssistantBubble({ text }: { text: string }) {
           flexShrink: 1,
         }}
       >
-        <Body style={{ color: theme.colors.text, lineHeight: theme.lineHeight.base }}>{text}</Body>
+        <FormattedMessage text={text} textColor={theme.colors.text} />
       </View>
     </View>
   );
@@ -664,9 +638,16 @@ export default function AIAssistantScreen() {
                     flexShrink: 1,
                   }}
                 >
-                  <Body style={{ color: item.role === 'user' ? theme.colors.onPrimary : theme.colors.text, lineHeight: theme.lineHeight.base }}>
-                    {item.role === 'assistant' ? renderMessageText(item.text, theme.colors.primary, setPopupRef) : item.text}
-                  </Body>
+                  {item.role === 'assistant' ? (
+                    <FormattedMessage
+                      text={item.text}
+                      textColor={theme.colors.text}
+                      linkColor={theme.colors.primary}
+                      onPressRef={setPopupRef}
+                    />
+                  ) : (
+                    <Body style={{ color: theme.colors.onPrimary, lineHeight: theme.lineHeight.base }}>{item.text}</Body>
+                  )}
                 </View>
               </View>
               {item.role === 'assistant' && item.sources && item.sources.length > 0 && (
