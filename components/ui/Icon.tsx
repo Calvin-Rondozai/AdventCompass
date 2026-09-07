@@ -106,6 +106,7 @@ export const Monitor = makeIcon('desktop');
 export const Moon = makeIcon('moon');
 export const MoreHorizontal = makeIcon('ellipsis-horizontal');
 export const Music = makeIcon('musical-notes');
+export const SheetMusic = makeIcon('musical-notes-outline');
 export const Palette = makeIcon('color-palette');
 export const Pause = makeIcon('pause-circle', 'pause-circle-outline');
 export const Pencil = makeIcon('pencil');

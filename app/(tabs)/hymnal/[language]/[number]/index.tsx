@@ -5,13 +5,14 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { runOnJS } from 'react-native-reanimated';
-import { Heart, Library, Pause, Play } from '@/components/ui/Icon';
+import { Heart, Library, Pause, Play, SheetMusic } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { getHymn, HymnalLanguage } from '@/database/hymnal';
 import { toggleHymnFavorite, getFavoriteHymnNumbers } from '@/database/hymnFavorites';
 import { getHymnNote } from '@/database/hymnNotes';
 import { getHymnAudioModule, hasHymnAudio } from '@/database/hymnAudioAssets';
+import { hasHymnSheetMusic } from '@/database/hymnSheetMusicAssets';
 import { resolveAssetUri } from '@/database/resolveAssetUri';
 import { useAudioPlayerContext } from '@/contexts/AudioPlayerProvider';
 import { HymnNumberJump } from '@/components/bible/HymnNumberJump';
@@ -66,11 +67,22 @@ export default function HymnDetailScreen() {
     }
   }, [num, hymn, isThisPlaying, playing, play, pause, resume]);
 
+  const handleOpenSheetMusic = useCallback(() => {
+    if (!hasHymnSheetMusic(num)) {
+      showAlert('Sheet music not available', "This hymn doesn't have scanned sheet music yet.");
+      return;
+    }
+    router.push({ pathname: '/hymnal/[language]/[number]/sheet-music', params: { language: lang, number: String(num) } });
+  }, [num, lang]);
+
   useLayoutEffect(() => {
     navigation.setOptions({
       title: hymn ? `${hymn.number}. ${hymn.title}` : '',
       headerRight: () => (
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <PressableScale onPress={handleOpenSheetMusic} style={{ padding: theme.spacing.xs }}>
+            <SheetMusic size={20} color={hasHymnSheetMusic(num) ? theme.colors.text : theme.colors.textFaint} strokeWidth={1.75} />
+          </PressableScale>
           <PressableScale onPress={handlePlay} style={{ padding: theme.spacing.xs }}>
             {isThisPlaying && playing ? (
               <Pause size={20} color={theme.colors.primary} strokeWidth={1.75} />
@@ -92,7 +104,7 @@ export default function HymnDetailScreen() {
         </View>
       ),
     });
-  }, [navigation, hymn, theme, isFavorite, handleToggleFavorite, handlePlay, isThisPlaying, playing]);
+  }, [navigation, hymn, theme, isFavorite, handleToggleFavorite, handlePlay, handleOpenSheetMusic, num, isThisPlaying, playing]);
 
   const goToHymn = useCallback(
     (target: number | undefined) => {
