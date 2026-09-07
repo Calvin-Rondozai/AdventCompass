@@ -5,12 +5,15 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { runOnJS } from 'react-native-reanimated';
-import { Heart, Library, Play } from '@/components/ui/Icon';
+import { Heart, Library, Pause, Play } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { getHymn, HymnalLanguage } from '@/database/hymnal';
 import { toggleHymnFavorite, getFavoriteHymnNumbers } from '@/database/hymnFavorites';
 import { getHymnNote } from '@/database/hymnNotes';
+import { getHymnAudioModule, hasHymnAudio } from '@/database/hymnAudioAssets';
+import { resolveAssetUri } from '@/database/resolveAssetUri';
+import { useAudioPlayerContext } from '@/contexts/AudioPlayerProvider';
 import { HymnNumberJump } from '@/components/bible/HymnNumberJump';
 import { HymnalLanguageSheet, HymnalLanguageSheetHandle } from '@/components/hymnal/HymnalLanguageSheet';
 import { showAlert } from '@/components/ui/AppAlert';
@@ -30,6 +33,7 @@ export default function HymnDetailScreen() {
   const nextHymn = getHymn(lang, num + 1);
   const [isFavorite, setIsFavorite] = useState(false);
   const languageSheetRef = useRef<HymnalLanguageSheetHandle>(null);
+  const { nowPlaying, playing, play, pause, resume } = useAudioPlayerContext();
 
   useEffect(() => {
     getFavoriteHymnNumbers(db).then((favorites) => setIsFavorite(favorites.has(num)));
@@ -39,12 +43,28 @@ export default function HymnDetailScreen() {
     toggleHymnFavorite(db, lang, num).then(setIsFavorite);
   }, [db, lang, num]);
 
-  // No sheet-music/audio is attached to any hymn — a prior attempt at importing them
-  // from a numbered-only source (no titles to verify against) turned out mismatched and
-  // was removed. This is a placeholder until a source that can be verified is found.
-  const handlePlay = useCallback(() => {
-    showAlert('Audio not available', "Sheet music and MIDI playback for this hymn haven't been added yet.");
-  }, []);
+  // Audio is shared across every language (same tune, same hymn number — see
+  // database/hymnAudioAssets.ts), so identify "is this hymn the one playing" by number
+  // rather than by the language-specific display title.
+  const isThisPlaying = !!nowPlaying && nowPlaying.title.startsWith(`${num}.`);
+
+  const handlePlay = useCallback(async () => {
+    if (!hasHymnAudio(num)) {
+      showAlert('Audio not available', "This hymn doesn't have a tune recording yet.");
+      return;
+    }
+    if (isThisPlaying) {
+      if (playing) pause();
+      else resume();
+      return;
+    }
+    try {
+      const uri = await resolveAssetUri(getHymnAudioModule(num)!);
+      play(uri, `${num}. ${hymn?.title ?? ''}`, []);
+    } catch {
+      showAlert("Couldn't play", 'Something went wrong loading this hymn tune.');
+    }
+  }, [num, hymn, isThisPlaying, playing, play, pause, resume]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -52,7 +72,11 @@ export default function HymnDetailScreen() {
       headerRight: () => (
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <PressableScale onPress={handlePlay} style={{ padding: theme.spacing.xs }}>
-            <Play size={20} color={theme.colors.text} strokeWidth={1.75} />
+            {isThisPlaying && playing ? (
+              <Pause size={20} color={theme.colors.primary} strokeWidth={1.75} />
+            ) : (
+              <Play size={20} color={isThisPlaying ? theme.colors.primary : theme.colors.text} strokeWidth={1.75} />
+            )}
           </PressableScale>
           <PressableScale onPress={handleToggleFavorite} style={{ padding: theme.spacing.xs }}>
             <Heart
@@ -68,7 +92,7 @@ export default function HymnDetailScreen() {
         </View>
       ),
     });
-  }, [navigation, hymn, theme, isFavorite, handleToggleFavorite, handlePlay]);
+  }, [navigation, hymn, theme, isFavorite, handleToggleFavorite, handlePlay, isThisPlaying, playing]);
 
   const goToHymn = useCallback(
     (target: number | undefined) => {
