@@ -47,6 +47,8 @@ export default function MoreStackLayout() {
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="notifications" options={{ title: 'Reminders' }} />
       <Stack.Screen name="about" options={{ title: 'About' }} />
+      <Stack.Screen name="privacy-policy" options={{ title: 'Privacy Policy' }} />
+      <Stack.Screen name="terms-of-use" options={{ title: 'Terms of Use' }} />
     </Stack>
   );
 }

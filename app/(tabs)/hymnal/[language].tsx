@@ -3,13 +3,13 @@ import { FlatList, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { Grid3x3, Heart, Library, Search as SearchIcon, X } from '@/components/ui/Icon';
+import { Heart, Library, Search as SearchIcon, X } from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { getHymns, HYMNAL_LAST_LANGUAGE_KEY, HYMNALS, HymnalLanguage } from '@/database/hymnal';
 import { getFavoriteHymnNumbers, toggleHymnFavorite } from '@/database/hymnFavorites';
 import { setKv } from '@/database/kv';
-import { HymnNumberJump, HymnNumberJumpHandle } from '@/components/bible/HymnNumberJump';
+import { HymnNumberJump } from '@/components/bible/HymnNumberJump';
 import { HymnalLanguageSheet, HymnalLanguageSheetHandle } from '@/components/hymnal/HymnalLanguageSheet';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body } from '@/components/ui/Typography';
@@ -23,7 +23,6 @@ export default function HymnalListScreen() {
   const info = HYMNALS.find((h) => h.code === lang);
   const hymns = getHymns(lang);
 
-  const jumpRef = useRef<HymnNumberJumpHandle>(null);
   const languageSheetRef = useRef<HymnalLanguageSheetHandle>(null);
 
   const [showSearch, setShowSearch] = useState(false);
@@ -88,9 +87,6 @@ export default function HymnalListScreen() {
             ) : (
               <SearchIcon size={20} color={theme.colors.text} strokeWidth={1.75} />
             )}
-          </PressableScale>
-          <PressableScale onPress={() => jumpRef.current?.open()} style={{ padding: theme.spacing.xs }}>
-            <Grid3x3 size={20} color={theme.colors.text} strokeWidth={1.75} />
           </PressableScale>
           <PressableScale onPress={() => languageSheetRef.current?.open()} style={{ padding: theme.spacing.xs }}>
             <Library size={20} color={theme.colors.text} strokeWidth={1.75} />
@@ -169,7 +165,7 @@ export default function HymnalListScreen() {
         }}
       />
 
-      <HymnNumberJump ref={jumpRef} language={lang} hideTrigger />
+      <HymnNumberJump language={lang} />
       <HymnalLanguageSheet ref={languageSheetRef} currentLanguage={lang} />
     </SafeAreaView>
   );

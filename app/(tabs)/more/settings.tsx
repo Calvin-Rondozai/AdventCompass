@@ -2,7 +2,7 @@ import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Bell, ChevronRight, HeartPulse, Moon, Monitor, Sun } from '@/components/ui/Icon';
+import { Bell, ChevronRight, FileText, HeartPulse, Moon, Monitor, ShieldCheck, Sun } from '@/components/ui/Icon';
 
 import { useTheme, ThemePreference } from '@/theme/ThemeProvider';
 import { PressableScale } from '@/components/ui/PressableScale';
@@ -75,11 +75,47 @@ export default function SettingsScreen() {
 
         <Label style={{ marginBottom: theme.spacing.xs, marginTop: theme.spacing.md }}>Health</Label>
         <PressableScale onPress={() => router.push('/more/health')} scaleTo={0.99}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: theme.spacing.md }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingVertical: theme.spacing.md,
+              borderBottomWidth: 1,
+              borderBottomColor: theme.colors.border,
+            }}
+          >
             <HeartPulse size={24} color={theme.colors.primary} strokeWidth={1.75} />
             <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
               <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>Health & Wellness</Body>
               <Label style={{ marginTop: 2 }}>Exercise tracking</Label>
+            </View>
+            <ChevronRight size={16} color={theme.colors.textFaint} />
+          </View>
+        </PressableScale>
+
+        <Label style={{ marginBottom: theme.spacing.xs, marginTop: theme.spacing.md }}>Legal</Label>
+        <PressableScale onPress={() => router.push('/more/privacy-policy')} scaleTo={0.99}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingVertical: theme.spacing.md,
+              borderBottomWidth: 1,
+              borderBottomColor: theme.colors.border,
+            }}
+          >
+            <ShieldCheck size={24} color={theme.colors.primary} strokeWidth={1.75} />
+            <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
+              <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>Privacy Policy</Body>
+            </View>
+            <ChevronRight size={16} color={theme.colors.textFaint} />
+          </View>
+        </PressableScale>
+        <PressableScale onPress={() => router.push('/more/terms-of-use')} scaleTo={0.99}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: theme.spacing.md }}>
+            <FileText size={24} color={theme.colors.primary} strokeWidth={1.75} />
+            <View style={{ flex: 1, marginLeft: theme.spacing.md }}>
+              <Body style={{ fontFamily: theme.fontFamily.sansSemiBold }}>Terms of Use</Body>
             </View>
             <ChevronRight size={16} color={theme.colors.textFaint} />
           </View>

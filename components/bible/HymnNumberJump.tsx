@@ -145,13 +145,13 @@ export const HymnNumberJump = forwardRef<HymnNumberJumpHandle, Props>(function H
             <PressableScale onPress={() => numberInput && handleJump(Number(numberInput))} scaleTo={0.98}>
               <View
                 style={{
-                  backgroundColor: theme.colors.primary,
+                  backgroundColor: theme.colors.accent,
                   borderRadius: theme.radius.md,
                   padding: theme.spacing.sm + 2,
                   alignItems: 'center',
                 }}
               >
-                <Body style={{ color: theme.colors.onPrimary, fontFamily: theme.fontFamily.sansSemiBold }}>Go</Body>
+                <Body style={{ color: theme.colors.onAccent, fontFamily: theme.fontFamily.sansSemiBold }}>Go</Body>
               </View>
             </PressableScale>
           </Pressable>
