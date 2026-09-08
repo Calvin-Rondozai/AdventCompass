@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect } from 'react';
+import React, { useCallback, useLayoutEffect, useState } from 'react';
 import { Image, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
@@ -14,6 +14,7 @@ import { showAlert } from '@/components/ui/AppAlert';
 import { PageLoader } from '@/components/ui/PageLoader';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body } from '@/components/ui/Typography';
+import { ZoomableImage } from '@/components/ui/ZoomableImage';
 
 export default function HymnSheetMusicScreen() {
   const theme = useTheme();
@@ -24,6 +25,11 @@ export default function HymnSheetMusicScreen() {
   const hymn = getHymn(lang, num);
   const pages = getHymnSheetMusicModules(num);
   const { nowPlaying, playing, play, pause, resume } = useAudioPlayerContext();
+  // Zoomed-in pinch/pan needs the outer ScrollView's own scroll disabled, or the two gesture
+  // recognizers fight and the page jumps around instead of panning — tracked per page since
+  // more than one can be visible in the stacked list at once.
+  const [zoomedPages, setZoomedPages] = useState<Record<number, boolean>>({});
+  const anyPageZoomed = Object.values(zoomedPages).some(Boolean);
 
   // Same tune is shared across every language (see database/hymnAudioAssets.ts), so identify
   // "is this hymn the one playing" by number rather than by the language-specific title.
@@ -67,8 +73,7 @@ export default function HymnSheetMusicScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>
       <ScrollView
-        maximumZoomScale={3}
-        minimumZoomScale={1}
+        scrollEnabled={!anyPageZoomed}
         contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl, gap: theme.spacing.md }}
       >
         {!pages || pages.length === 0 ? (
@@ -76,24 +81,33 @@ export default function HymnSheetMusicScreen() {
             No sheet music available for this hymn yet.
           </Body>
         ) : (
-          pages.map((mod, i) => {
-            const source = Image.resolveAssetSource(mod);
-            const aspectRatio = source && source.height ? source.width / source.height : 0.77;
-            return (
-              <View
-                key={i}
-                style={{
-                  width: '100%',
-                  aspectRatio,
-                  borderRadius: theme.radius.sm,
-                  backgroundColor: '#ffffff',
-                  overflow: 'hidden',
-                }}
-              >
-                <Image source={mod} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
-              </View>
-            );
-          })
+          <>
+            <Body style={{ color: theme.colors.textMuted, textAlign: 'center', fontSize: theme.fontSize.xs }}>
+              Pinch or double-tap a page to zoom in
+            </Body>
+            {pages.map((mod, i) => {
+              const source = Image.resolveAssetSource(mod);
+              const aspectRatio = source && source.height ? source.width / source.height : 0.77;
+              return (
+                <View
+                  key={i}
+                  style={{
+                    width: '100%',
+                    aspectRatio,
+                    borderRadius: theme.radius.sm,
+                    backgroundColor: '#ffffff',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <ZoomableImage
+                    source={mod}
+                    style={{ width: '100%', height: '100%' }}
+                    onZoomChange={(zoomed) => setZoomedPages((prev) => ({ ...prev, [i]: zoomed }))}
+                  />
+                </View>
+              );
+            })}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>

@@ -71,6 +71,58 @@ export const OFFERTORY_REFERENCES: OffertoryReference[] = [
     book: 'Psalms', chapter: 116, verseStart: 12,
     comment: '"What shall I render to the Lord for all His benefits toward me?" Giving flows from gratitude for what God has already done; it is a response to grace, not a payment for it.',
   },
+  {
+    book: 'Exodus', chapter: 25, verseStart: 2,
+    comment: 'The very first offering instructions in Scripture set the standard: gifts gathered "willingly, with his heart," not by requirement, mark the character of giving from Israel\'s earliest worship onward.',
+  },
+  {
+    book: 'Deuteronomy', chapter: 8, verseStart: 18,
+    comment: 'A warning wrapped inside a reminder: it is God who gives "the power to get wealth," so that His covenant, not our own strength, gets the credit for what we then have to give.',
+  },
+  {
+    book: '1 Chronicles', chapter: 29, verseStart: 9,
+    comment: 'When Israel\'s offering for the temple was given "with perfect heart," the people\'s response was joy, not relief that it was over; willing giving and rejoicing arrive together.',
+  },
+  {
+    book: '1 Chronicles', chapter: 29, verseStart: 14,
+    comment: 'David\'s prayer after that offering: even a king\'s wealth is only God\'s own returned to Him, "for all things come of Thee, and of Thine own have we given Thee."',
+  },
+  {
+    book: 'Psalms', chapter: 96, verseStart: 8,
+    comment: 'Continues the summons of the verse before it: giving God "the glory due unto His name" is completed by physically bringing an offering into His courts, an act, not only an attitude.',
+  },
+  {
+    book: 'Proverbs', chapter: 11, verseStart: 24, verseEnd: 25,
+    comment: 'A paradox at the center of biblical giving: withholding "more than is meet" tends to poverty, while the liberal soul, the one who waters others, ends up watered themselves.',
+  },
+  {
+    book: 'Matthew', chapter: 25, verseStart: 21,
+    comment: 'The commendation in the parable of the talents goes to faithfulness with "a few things," not the size of the return, the same measure by which every offering, however small, is received.',
+  },
+  {
+    book: 'Mark', chapter: 12, verseStart: 41, verseEnd: 44,
+    comment: 'Mark\'s account of the widow\'s two mites: Jesus calls His disciples over specifically to watch her give, making sure the lesson, sacrifice measured by what\'s kept back, not what\'s dropped in, isn\'t missed.',
+  },
+  {
+    book: 'Luke', chapter: 6, verseStart: 38,
+    comment: 'Jesus ties giving to a returning measure, "pressed down, and shaken together, and running over", not as a formula to profit by, but as the shape of how grace actually moves.',
+  },
+  {
+    book: '1 Corinthians', chapter: 4, verseStart: 2,
+    comment: 'The one qualification asked of a steward isn\'t wealth or skill but faithfulness, the standard giving is measured against, whatever the size of what has been entrusted.',
+  },
+  {
+    book: '2 Corinthians', chapter: 8, verseStart: 9,
+    comment: 'Paul grounds the appeal for the Corinthians\' offering in the gospel itself: Christ "became poor" so His poverty could make others rich, the pattern every offering imitates in miniature.',
+  },
+  {
+    book: 'Philippians', chapter: 4, verseStart: 18,
+    comment: 'Paul describes the Philippians\' gift to him in the language of temple sacrifice, "an odour of a sweet smell", giving to support gospel work is itself a form of worship God receives as such.',
+  },
+  {
+    book: 'Hebrews', chapter: 13, verseStart: 16,
+    comment: 'Alongside praise, "to do good and to communicate" (share what we have) is named a sacrifice God is "well pleased" with; offerings didn\'t end with the cross, they simply changed form.',
+  },
 ];
 
 export function formatOffertoryRef(ref: OffertoryReference): string {

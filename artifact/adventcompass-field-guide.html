@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AdventCompass Field Guide</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #f5f4f9;
+    --bg-raised: #ecebf4;
+    --ink: #14162a;
+    --ink-soft: #55577a;
+    --ink-faint: #85869f;
+    --hairline: #d9d6e6;
+    --gold: #a97a22;
+    --gold-ink: #6e5015;
+    --gold-soft: #ecdcb4;
+    --sage: #33665a;
+    --sabbath-day: #ffffff;
+    --sabbath-band-a: #d9b45f;
+    --sabbath-band-b: #23264a;
+    --shadow: 0 1px 0 rgba(20, 22, 42, 0.06);
+
+    --font-display: "Fraunces", Georgia, "Iowan Old Style", serif;
+    --font-body: "Source Sans 3", -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1122;
+      --bg-raised: #171933;
+      --ink: #edecf7;
+      --ink-soft: #a9a9c8;
+      --ink-faint: #75769a;
+      --hairline: #2b2d4d;
+      --gold: #e3c687;
+      --gold-ink: #f2ddab;
+      --gold-soft: #35301c;
+      --sage: #7fb2a1;
+      --sabbath-day: #262a52;
+      --sabbath-band-a: #caa252;
+      --sabbath-band-b: #05061a;
+      --shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0f1122;
+    --bg-raised: #171933;
+    --ink: #edecf7;
+    --ink-soft: #a9a9c8;
+    --ink-faint: #75769a;
+    --hairline: #2b2d4d;
+    --gold: #e3c687;
+    --gold-ink: #f2ddab;
+    --gold-soft: #35301c;
+    --sage: #7fb2a1;
+    --sabbath-day: #262a52;
+    --sabbath-band-a: #caa252;
+    --sabbath-band-b: #05061a;
+    --shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+  }
+
+  * { box-sizing: border-box; }
+
+  @media print {
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { margin: 0; }
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+
+  h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+
+  .wrap {
+    max-width: 1080px;
+    margin-inline: auto;
+    padding-inline: clamp(1.25rem, 4vw, 3rem);
+  }
+
+  /* ---------- Hero ---------- */
+  .hero { padding-block: clamp(3rem, 8vw, 5.5rem) clamp(2rem, 5vw, 3rem); }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--gold-ink);
+    margin: 0 0 1rem;
+  }
+
+  .hero__title {
+    font-size: clamp(2.75rem, 7vw, 5rem);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 0.98;
+  }
+
+  .hero__sub {
+    font-size: clamp(1.02rem, 1.6vw, 1.2rem);
+    color: var(--ink-soft);
+    max-width: 46rem;
+    margin: 1.25rem 0 0;
+  }
+
+  /* ---------- Horizon diagram ---------- */
+  .horizon {
+    margin-top: clamp(2.25rem, 5vw, 3.25rem);
+    background: var(--bg-raised);
+    border: 1px solid var(--hairline);
+    padding: clamp(1.25rem, 3vw, 2rem) clamp(1.25rem, 3vw, 2.25rem) clamp(1.5rem, 3vw, 2rem);
+  }
+
+  .horizon svg { width: 100%; height: auto; display: block; overflow: visible; }
+
+  .horizon__sun {
+    animation: drift 14s ease-in-out infinite alternate;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .horizon__sun { animation: none; }
+  }
+
+  @keyframes drift {
+    from { transform: translateX(-6px); opacity: 0.85; }
+    to { transform: translateX(6px); opacity: 1; }
+  }
+
+  .horizon__caption {
+    font-size: 0.92rem;
+    color: var(--ink-soft);
+    max-width: 42rem;
+    margin: 1.1rem 0 0;
+  }
+
+  .horizon__caption strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- Table of contents ---------- */
+  .toc { padding-block: clamp(1.5rem, 4vw, 2.5rem); }
+
+  .toc__list { list-style: none; margin: 0; padding: 0; }
+
+  .toc__list li + li { border-top: 1px solid var(--hairline); }
+
+  .toc__list a {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 0.85rem 0;
+    text-decoration: none;
+  }
+
+  .toc__num {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--gold-ink);
+    font-size: 1.05rem;
+    width: 1.6rem;
+    flex: none;
+  }
+
+  .toc__title {
+    font-weight: 600;
+    font-size: 1.02rem;
+    white-space: nowrap;
+  }
+
+  .toc__leader {
+    flex: 1 1 auto;
+    border-bottom: 1px dotted var(--ink-faint);
+    margin-bottom: 0.4em;
+    min-width: 2rem;
+  }
+
+  .toc__count {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+    flex: none;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .toc__list a:hover .toc__title,
+  .toc__list a:hover .toc__num { color: var(--gold-ink); }
+  .toc__list a:hover .toc__leader { border-color: var(--gold); }
+
+  /* ---------- Chapters ---------- */
+  .chapters { padding-block: clamp(1rem, 4vw, 2rem) clamp(2rem, 5vw, 3rem); }
+
+  .chapter {
+    display: grid;
+    grid-template-columns: 15rem 1fr;
+    column-gap: clamp(2rem, 5vw, 3.5rem);
+    padding-block: clamp(2.5rem, 6vw, 4rem);
+    border-top: 1px solid var(--hairline);
+    scroll-margin-top: 1.5rem;
+  }
+
+  .chapter__numeral {
+    display: block;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(3rem, 6vw, 4.25rem);
+    line-height: 1;
+    color: var(--gold);
+  }
+
+  .chapter__eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0.75rem 0 0.4rem;
+  }
+
+  .chapter__title {
+    font-size: clamp(1.5rem, 2.4vw, 1.85rem);
+    font-weight: 600;
+  }
+
+  .chapter__intro {
+    color: var(--ink-soft);
+    font-size: 0.98rem;
+    max-width: 26rem;
+    margin: 0.85rem 0 0;
+  }
+
+  .chapter__entries { margin-top: clamp(1.5rem, 4vw, 0rem); }
+
+  .entry {
+    display: grid;
+    grid-template-columns: 3.6rem 1fr;
+    gap: 0.35rem 1rem;
+    padding: 0.9rem 0.6rem;
+    margin-inline: -0.6rem;
+    border-top: 1px solid var(--hairline);
+    transition: background-color 160ms ease;
+  }
+
+  .chapter__entries .entry:first-child { border-top: none; }
+
+  .entry:hover { background: var(--bg-raised); }
+
+  .entry__ref {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+    padding-top: 0.15rem;
+    transition: color 160ms ease;
+  }
+
+  .entry:hover .entry__ref { color: var(--gold-ink); }
+
+  .entry__title {
+    font-weight: 600;
+    font-size: 1.02rem;
+    margin: 0;
+  }
+
+  .entry__desc {
+    grid-column: 2;
+    color: var(--ink-soft);
+    font-size: 0.92rem;
+    max-width: 42rem;
+    margin: 0.2rem 0 0;
+  }
+
+  @media (max-width: 760px) {
+    .chapter { grid-template-columns: 1fr; }
+    .chapter__numeral { font-size: 2.5rem; }
+    .entry { grid-template-columns: 2.75rem 1fr; }
+  }
+
+  /* ---------- Colophon ---------- */
+  .colophon {
+    background: var(--bg-raised);
+    border-top: 1px solid var(--hairline);
+    padding-block: clamp(2.5rem, 6vw, 3.5rem);
+  }
+
+  .colophon__stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+    gap: 1.5rem;
+    padding-bottom: clamp(2rem, 5vw, 2.75rem);
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .stat__value {
+    font-family: var(--font-mono);
+    font-size: clamp(1.4rem, 2.6vw, 1.8rem);
+    color: var(--gold-ink);
+    font-variant-numeric: tabular-nums;
+    display: block;
+  }
+
+  .stat__label {
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    margin-top: 0.25rem;
+  }
+
+  .colophon__note {
+    margin-top: clamp(1.75rem, 4vw, 2.25rem);
+    color: var(--ink-soft);
+    max-width: 40rem;
+    font-size: 0.98rem;
+  }
+
+  .colophon__note strong { color: var(--ink); font-family: var(--font-display); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap hero__inner">
+    <p class="eyebrow">A Seventh-day Adventist companion</p>
+    <h1 class="hero__title">AdventCompass</h1>
+    <p class="hero__sub">
+      Scripture, hymnal, and the writings of Ellen G. White, held together by an AI assistant
+      that only knows what's already on your shelf. Twenty-eight features, one phone, no
+      connection required.
+    </p>
+
+    <div class="horizon">
+      <svg viewBox="0 0 760 150" role="img" aria-labelledby="horizonTitle">
+        <title id="horizonTitle">A 48-hour timeline from Friday midnight to Sunday midnight, showing the Sabbath window</title>
+        <rect x="40" y="70" width="255" height="22" fill="var(--sabbath-day)" stroke="var(--hairline)" stroke-width="1"></rect>
+        <rect x="295" y="70" width="381" height="22" fill="url(#sabbathGradient)" stroke="var(--hairline)" stroke-width="1"></rect>
+        <rect x="676" y="70" width="84" height="22" fill="var(--sabbath-day)" stroke="var(--hairline)" stroke-width="1"></rect>
+        <defs>
+          <linearGradient id="sabbathGradient" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0" stop-color="var(--sabbath-band-a)"></stop>
+            <stop offset="0.18" stop-color="var(--sabbath-band-b)"></stop>
+            <stop offset="0.82" stop-color="var(--sabbath-band-b)"></stop>
+            <stop offset="1" stop-color="var(--sabbath-band-a)"></stop>
+          </linearGradient>
+        </defs>
+
+        <line x1="40" y1="92" x2="760" y2="92" stroke="var(--hairline)" stroke-width="1"></line>
+        <g stroke="var(--ink-faint)" stroke-width="1">
+          <line x1="40" y1="92" x2="40" y2="98"></line>
+          <line x1="295" y1="92" x2="295" y2="98"></line>
+          <line x1="676" y1="92" x2="676" y2="98"></line>
+          <line x1="760" y1="92" x2="760" y2="98"></line>
+        </g>
+
+        <circle class="horizon__sun" cx="295" cy="81" r="5" fill="var(--sabbath-band-a)" stroke="var(--bg-raised)" stroke-width="2"></circle>
+        <circle class="horizon__sun" cx="676" cy="81" r="5" fill="var(--sabbath-band-a)" stroke="var(--bg-raised)" stroke-width="2"></circle>
+
+        <text x="485" y="60" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" letter-spacing="2" fill="var(--gold-ink)">SABBATH</text>
+
+        <g font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--ink-faint)">
+          <text x="40" y="115">FRI 00:00</text>
+          <text x="295" y="115" text-anchor="middle">FRI 17:00</text>
+          <text x="295" y="131" text-anchor="middle" fill="var(--ink-soft)">Sabbath begins</text>
+          <text x="676" y="115" text-anchor="middle">SAT · SUNSET</text>
+          <text x="676" y="131" text-anchor="middle" fill="var(--ink-soft)">Sabbath ends</text>
+        </g>
+      </svg>
+      <p class="horizon__caption">
+        <strong>Friday</strong> cuts over to Sabbath at a fixed 5:00 PM. <strong>Saturday's</strong>
+        end is a real astronomical sunset, recalculated every week from your GPS location —
+        never a fixed clock.
+      </p>
+    </div>
+  </div>
+</header>
+
+<nav class="toc wrap" aria-label="Chapters">
+  <ol class="toc__list">
+    <li><a href="#chapter-i"><span class="toc__num">I</span><span class="toc__title">Scripture &amp; Study</span><span class="toc__leader"></span><span class="toc__count">08</span></a></li>
+    <li><a href="#chapter-ii"><span class="toc__num">II</span><span class="toc__title">Worship &amp; Song</span><span class="toc__leader"></span><span class="toc__count">07</span></a></li>
+    <li><a href="#chapter-iii"><span class="toc__num">III</span><span class="toc__title">Hello C, the AI Companion</span><span class="toc__leader"></span><span class="toc__count">05</span></a></li>
+    <li><a href="#chapter-iv"><span class="toc__num">IV</span><span class="toc__title">Daily Practice</span><span class="toc__leader"></span><span class="toc__count">04</span></a></li>
+    <li><a href="#chapter-v"><span class="toc__num">V</span><span class="toc__title">Rhythm &amp; Reminders</span><span class="toc__leader"></span><span class="toc__count">04</span></a></li>
+  </ol>
+</nav>
+
+<main class="wrap chapters">
+
+  <section class="chapter" id="chapter-i">
+    <div class="chapter__head">
+      <span class="chapter__numeral">I</span>
+      <p class="chapter__eyebrow">Chapter I</p>
+      <h2 class="chapter__title">Scripture &amp; Study</h2>
+      <p class="chapter__intro">The library at the center of the app — text, translation, and every cross-reference that opens it further.</p>
+    </div>
+    <div class="chapter__entries">
+      <div class="entry">
+        <span class="entry__ref">I.01</span>
+        <p class="entry__title">Bible in five translations</p>
+        <p class="entry__desc">NHEB, KJV (1769), ASV (1901), and MKJV in English, plus SNA — the Shona Contemporary Bible — with full-text search and bookmarks.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">I.02</span>
+        <p class="entry__title">S.D.A. Bible Commentary, Vols. 1–6</p>
+        <p class="entry__desc">Linked to every verse right inside the reader.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">I.03</span>
+        <p class="entry__title">Cross-references</p>
+        <p class="entry__desc">Every verse connects out to the ones that explain it.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">I.04</span>
+        <p class="entry__title">Ellen G. White writings</p>
+        <p class="entry__desc">All 49 volumes, fully searchable.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">I.05</span>
+        <p class="entry__title">Read Aloud</p>
+        <p class="entry__desc">Narration for the Bible, the EGW library, and daily devotions.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">I.06</span>
+        <p class="entry__title">Bible reading plans</p>
+        <p class="entry__desc">Structured plans with progress tracked as you go.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">I.07</span>
+        <p class="entry__title">Fundamental Beliefs &amp; topical verses</p>
+        <p class="entry__desc">The 28 beliefs, and a verse index organized by subject.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">I.08</span>
+        <p class="entry__title">Chapter-a-Day</p>
+        <p class="entry__desc">One chapter surfaced fresh on the home screen each morning.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" id="chapter-ii">
+    <div class="chapter__head">
+      <span class="chapter__numeral">II</span>
+      <p class="chapter__eyebrow">Chapter II</p>
+      <h2 class="chapter__title">Worship &amp; Song</h2>
+      <p class="chapter__intro">Sabbath School, hymnal, and the readings that shape a Sabbath — in three languages.</p>
+    </div>
+    <div class="chapter__entries">
+      <div class="entry">
+        <span class="entry__ref">II.01</span>
+        <p class="entry__title">Sabbath School</p>
+        <p class="entry__desc">Current quarter, auto-downloaded when you're online, in standard or Easy Reading Edition, with PDF sync.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">II.02</span>
+        <p class="entry__title">Hymnal in three languages</p>
+        <p class="entry__desc">English, chiShona, and isiNdebele, with a quick jump-to-number dial and favorites.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">II.03</span>
+        <p class="entry__title">Hymn tunes &amp; sheet music</p>
+        <p class="entry__desc">Audio playback alongside sheet music you can pinch or double-tap to zoom.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">II.04</span>
+        <p class="entry__title">Daily devotions</p>
+        <p class="entry__desc">A short reading to open or close the day.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">II.05</span>
+        <p class="entry__title">Children's sermons</p>
+        <p class="entry__desc">Object lessons with scripture references, ready for Sabbath School.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">II.06</span>
+        <p class="entry__title">Offertory readings</p>
+        <p class="entry__desc">Verse-tailored commentary to read before the offering.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">II.07</span>
+        <p class="entry__title">Special days calendar</p>
+        <p class="entry__desc">The observances and emphasis days on the church calendar.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" id="chapter-iii">
+    <div class="chapter__head">
+      <span class="chapter__numeral">III</span>
+      <p class="chapter__eyebrow">Chapter III</p>
+      <h2 class="chapter__title">Hello C, the AI Companion</h2>
+      <p class="chapter__intro">An assistant that only knows what's already on your shelf — the Bible, all 49 EGW volumes, commentary, and hymns.</p>
+    </div>
+    <div class="chapter__entries">
+      <div class="entry">
+        <span class="entry__ref">III.01</span>
+        <p class="entry__title">Ask anything</p>
+        <p class="entry__desc">Answered from the Bible, the EGW writings, commentary, and hymns already in the app — nothing fetched from outside it.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">III.02</span>
+        <p class="entry__title">Tap a verse to open its commentary</p>
+        <p class="entry__desc">Any verse Hello C cites opens the matching S.D.A. Bible Commentary directly.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">III.03</span>
+        <p class="entry__title">Follow a cross-reference from chat</p>
+        <p class="entry__desc">Jump straight to a related verse without leaving the conversation.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">III.04</span>
+        <p class="entry__title">Offline mode</p>
+        <p class="entry__desc">One download, about 800 MB, then it answers forever with no connection needed again.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">III.05</span>
+        <p class="entry__title">Online mode</p>
+        <p class="entry__desc">Skip the download and get answers instantly over your connection instead.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" id="chapter-iv">
+    <div class="chapter__head">
+      <span class="chapter__numeral">IV</span>
+      <p class="chapter__eyebrow">Chapter IV</p>
+      <h2 class="chapter__title">Daily Practice</h2>
+      <p class="chapter__intro">Where study turns into habit — notes, prayer, and the small disciplines tracked day by day.</p>
+    </div>
+    <div class="chapter__entries">
+      <div class="entry">
+        <span class="entry__ref">IV.01</span>
+        <p class="entry__title">Notes</p>
+        <p class="entry__desc">Categories, pinning, archive, and grid or list view.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">IV.02</span>
+        <p class="entry__title">Prayer journal</p>
+        <p class="entry__desc">A running record of what you're praying through.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">IV.03</span>
+        <p class="entry__title">Habit tracking</p>
+        <p class="entry__desc">Bible study, prayer, water (2,000 mL goal), and exercise (30 min goal) — each with its own weekly streak.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">IV.04</span>
+        <p class="entry__title">Home screen widgets</p>
+        <p class="entry__desc">Water Tank and Weekly Progress, visible without opening the app.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" id="chapter-v">
+    <div class="chapter__head">
+      <span class="chapter__numeral">V</span>
+      <p class="chapter__eyebrow">Chapter V</p>
+      <h2 class="chapter__title">Rhythm &amp; Reminders</h2>
+      <p class="chapter__intro">The app keeps time with the week — especially the one evening it was built around.</p>
+    </div>
+    <div class="chapter__entries">
+      <div class="entry">
+        <span class="entry__ref">V.01</span>
+        <p class="entry__title">Reminders</p>
+        <p class="entry__desc">Background and exact-time notifications for prayer, water, Bible study, Sabbath prep, and more — each toggled individually in Settings.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">V.02</span>
+        <p class="entry__title">Sabbath greeting</p>
+        <p class="entry__desc">Friday at 5:00 PM sharp, then a true astronomical sunset on Saturday, calculated from your location.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">V.03</span>
+        <p class="entry__title">Light, dark, or system theme</p>
+        <p class="entry__desc">Follows the phone, or overridden by hand.</p>
+      </div>
+      <div class="entry">
+        <span class="entry__ref">V.04</span>
+        <p class="entry__title">Offline-first, start to finish</p>
+        <p class="entry__desc">Every chapter above works with the phone in airplane mode, once it's on the device.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="colophon">
+  <div class="wrap">
+    <div class="colophon__stats">
+      <div><span class="stat__value">5</span><span class="stat__label">Bible translations</span></div>
+      <div><span class="stat__value">49</span><span class="stat__label">EGW volumes</span></div>
+      <div><span class="stat__value">6</span><span class="stat__label">commentary volumes</span></div>
+      <div><span class="stat__value">3</span><span class="stat__label">hymnal languages</span></div>
+      <div><span class="stat__value">28</span><span class="stat__label">features, this edition</span></div>
+      <div><span class="stat__value">~800 MB</span><span class="stat__label">on-device AI model</span></div>
+    </div>
+    <p class="colophon__note">
+      Printed for the person carrying it, not the person selling it.
+      <strong>AdventCompass</strong> — offline-first, start to finish.
+    </p>
+  </div>
+</footer>
+</body>
+</html>

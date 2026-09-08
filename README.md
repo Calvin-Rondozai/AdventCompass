@@ -6,25 +6,35 @@
 
 An offline-first companion app for Seventh-day Adventists — Bible, hymnal, Ellen G.
 White's writings, Bible commentary, Sabbath School lessons, devotionals, prayer, notes,
-and health tracking, all in one place, all available without a connection.
+an on-device AI assistant, and health tracking, all in one place, all available
+without a connection.
 
 ## Features
 
 - **Bible** — five translations, cross-references, side-by-side comparison, verse
-  highlighting and notes
+  highlighting, copy/share, bookmarks, search, and Read Aloud narration
 - **Bible Commentary** — S.D.A. Bible Commentary, volumes 1–6, linked verse-by-verse
   to the Bible reader
-- **Ellen G. White library** — ~40 titles, searchable, with page numbers and
-  highlighting
-- **Hymnal** — English, chiShona, isiNdebele, with a quick jump-to-number dial
-- **Sabbath School** — current quarter's lesson, auto-downloaded when you're online;
-  English or chiShona, standard or Easy Reading Edition
-- **Fundamental Beliefs**, devotionals, and offertory readings with verse-tailored
-  commentary
-- **Prayer requests** and a **Notes** app with checklists and reminders
-- **Health tracking** — water intake, exercise
-- Reminders for prayer, Sabbath prep, chapter-a-day reading, and more — all
-  individually controllable from Settings
+- **AI Bible Assistant ("Hello C")** — answers from the Bible, all 49 EGW books,
+  commentary, and hymns already in the app; runs fully offline after a one-time
+  ~800MB model download, or online for instant answers without the download
+- **Ellen G. White library** — all 49 books, searchable, with page numbers,
+  highlighting, and Read Aloud narration
+- **Hymnal** — English, chiShona, isiNdebele, with audio playback, sheet music,
+  favorites, and a quick jump-to-number dial
+- **Sabbath School** — current quarter's lesson, auto-downloaded when you're online,
+  with PDF sync; English or chiShona, standard or Easy Reading Edition
+- **Bible reading plans**, **Fundamental Beliefs**, **topical verses**,
+  **devotionals**, **children's sermons**, **special days**, and offertory readings
+  with verse-tailored commentary
+- **Prayer journal** and a **Notes** app with categories, pinning, archive, and
+  grid/list views
+- **Health & habit tracking** — Bible study, prayer, water intake, and exercise,
+  with home screen widgets (water tank, weekly progress)
+- **Sabbath greeting** — a Friday-5pm-to-Saturday-sunset greeting, timed to your
+  actual location's sunset
+- Background and exact-time reminders for prayer, water, Bible study, Sabbath prep,
+  chapter-a-day reading, and more — all individually controllable from Settings
 
 ## Getting started
 

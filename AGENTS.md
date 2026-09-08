@@ -5,8 +5,9 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 # WORK IN PROGRESS — read this first if resuming a session
 
 (Delete this section once the release APK is verified on-device. It exists purely so a fresh
-session in this folder knows where things stand. Sizing is DONE — user chose to stop at 103.6MB
-arm64-v8a / 76.2MB armeabi-v7a rather than push further; do not reopen that unless asked.)
+session in this folder knows where things stand. Sizing techniques below are still in place and
+still working — but see the size history note: the 103.6MB/76.2MB figure is stale, a lot of real
+feature work has landed since it was measured. Don't start a new shrink pass unless asked.)
 
 **Original ask:** build a release APK, shrink it toward ~100MB, and fix: background/exact-time
 notifications, a Friday-5pm-to-Saturday-sunset Sabbath greeting, janky/stuck navigation, a tab
@@ -53,20 +54,26 @@ bar that flicks on "more options" taps, and an invisible status bar.
   `crossReferences.json` (2.8MB), `hymnal*.json` (~580KB), `sdaCommentary*.json` (~1.3MB),
   `childrensSermonsData.json` (92KB), `fundamentalBeliefs.json` (28KB), `shonaBookNames.json` (4KB).
 
-**Size history** (arm64-v8a / armeabi-v7a release APKs) — FINAL, confirmed by real builds:
+**Size history** (arm64-v8a / armeabi-v7a release APKs):
 - Original universal APK (4 ABIs): 279MB
 - After ABI split + drop x86/x86_64: 194MB / 118MB
-- After llama.rn variant trim + Bible/EGW JSON moved out of the JS bundle: **103.6MB / 76.2MB**
-- User explicitly chose to stop here rather than push further (would've meant either dropping
-  the AI engine's universal fallback variant, or enabling untested R8 minification). Don't
-  reopen this without being asked again.
+- After llama.rn variant trim + Bible/EGW JSON moved out of the JS bundle: 103.6MB / 76.2MB
+  (measured at commit 81e83b4 — user explicitly chose to stop here rather than push further,
+  e.g. dropping the AI engine's universal fallback variant, or enabling untested R8 minification)
+- **2026-09-07, current HEAD (439 files changed since 81e83b4 — widgets, hymn audio, hymn sheet
+  music, notifications, Sabbath PDF sync, speech engine, etc.): 128.9MB / 102.9MB.** The
+  techniques above are all still applied and still working as configured — this is organic growth
+  from real feature work, not a regression. Don't treat 103.6/76.2 as the current baseline; if
+  shrinking is wanted again, re-measure from here first (e.g. is minifyEnabled/shrinkResources
+  actually on? check `enableMinifyInReleaseBuilds`/`android.enableShrinkResourcesInReleaseBuilds`
+  in gradle.properties).
 
 **Not yet done / never confirmed:**
-- The rebuilt+resized APK has not been installed and smoke-tested on a real device or emulator.
+- The rebuilt/resized APK (either measurement above) has not been installed and smoke-tested on a
+  real device or emulator.
 - Notifications' exact-alarm settings redirect (`Linking.sendIntent`) has not been verified to
   actually open the right screen on a real device.
 - The Sabbath greeting's GPS sunset calculation has not been verified against a real location.
-- Whether R8 minification is even still needed depends on the rebuild result above.
 
 **Build environment gotcha (cost real time this session):** never run `gradlew`/`gradlew.bat`
 from Git Bash — it sets `MSYSTEM=MINGW64`, which breaks CMake's Android NDK toolchain detection

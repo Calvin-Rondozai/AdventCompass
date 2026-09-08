@@ -3,24 +3,56 @@ import { Image, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { BookHeart, BookOpen, BookMarked, CalendarDays, Download, Gift, Library, Link2, Music, NotebookPen, Sparkles, Volume2, Wifi } from '@/components/ui/Icon';
+import {
+  Bell,
+  BookHeart,
+  BookOpen,
+  BookMarked,
+  CalendarClock,
+  CalendarDays,
+  Copy,
+  Download,
+  Gift,
+  HandCoins,
+  HeartHandshake,
+  HeartPulse,
+  Library,
+  Link2,
+  ListChecks,
+  Music,
+  NotebookPen,
+  Sparkles,
+  Sun,
+  Volume2,
+  Wifi,
+} from '@/components/ui/Icon';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { setKv } from '@/database/kv';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body, Heading } from '@/components/ui/Typography';
 
-const FEATURES = [
-  { Icon: BookOpen, label: 'Bible in 5 translations' },
-  { Icon: BookMarked, label: "Ellen White's writings (49 books) & Commentary" },
+const STUDY_FEATURES = [
+  { Icon: BookOpen, label: 'Bible in 5 translations, with search & bookmarks' },
+  { Icon: BookMarked, label: "Ellen G. White's writings — all 49 books" },
+  { Icon: Library, label: 'Bible Commentary for deeper study' },
   { Icon: CalendarDays, label: 'Sabbath School lessons, auto-updated' },
-  { Icon: Music, label: 'Hymnal in English, chiShona & isiNdebele' },
-  { Icon: BookHeart, label: 'Daily devotions' },
-  { Icon: BookOpen, label: 'Bible reading plans' },
-  { Icon: Gift, label: "Children's sermons" },
+  { Icon: BookHeart, label: 'Daily devotions & Bible reading plans' },
+  { Icon: ListChecks, label: 'Fundamental Beliefs & topical verses' },
   { Icon: Volume2, label: 'Read Aloud narration for the Bible, EGW books & devotions' },
-  { Icon: NotebookPen, label: 'Notes, prayer, and daily habits' },
-  { Icon: Sparkles, label: 'AI Bible Assistant, offline or online' },
+  { Icon: Copy, label: 'Copy & share verses instantly' },
+];
+
+const TOOLS_FEATURES = [
+  { Icon: Music, label: 'Hymnal in English, chiShona & isiNdebele, with audio & sheet music' },
+  { Icon: NotebookPen, label: 'Notes with categories, pinning & archive' },
+  { Icon: HeartHandshake, label: 'Prayer journal' },
+  { Icon: HeartPulse, label: 'Health & habit tracking, with home screen widgets' },
+  { Icon: Gift, label: "Children's sermons" },
+  { Icon: HandCoins, label: 'Offertory readings' },
+  { Icon: CalendarClock, label: 'Special days calendar' },
+  { Icon: Bell, label: 'Smart reminders for prayer, water, Bible study & Sabbath' },
+  { Icon: Sun, label: 'Sabbath greeting, timed to your local sunset' },
 ];
 
 const AI_HIGHLIGHTS = [
@@ -63,11 +95,11 @@ export default function OnboardingScreen() {
 
         {page === 1 && (
           <View style={{ gap: theme.spacing.md }}>
-            <Heading style={{ fontSize: theme.fontSize.xl, textAlign: 'center' }}>Everything in one place</Heading>
-            {/* All 9 fit on one screen without scrolling — smaller icons and tighter row
-                gap than the other pages specifically to make room for the full list. */}
+            <Heading style={{ fontSize: theme.fontSize.xl, textAlign: 'center' }}>Study anywhere, anytime</Heading>
+            {/* Smaller icons and tighter row gap than the welcome/AI pages specifically to
+                make room for the full list without scrolling. */}
             <View style={{ gap: theme.spacing.xs + 4 }}>
-              {FEATURES.map(({ Icon, label }) => (
+              {STUDY_FEATURES.map(({ Icon, label }) => (
                 <View key={label} style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Icon size={20} color={theme.colors.primary} strokeWidth={1.75} />
                   <Body style={{ flex: 1, marginLeft: theme.spacing.sm, fontSize: theme.fontSize.sm }}>{label}</Body>
@@ -78,6 +110,20 @@ export default function OnboardingScreen() {
         )}
 
         {page === 2 && (
+          <View style={{ gap: theme.spacing.md }}>
+            <Heading style={{ fontSize: theme.fontSize.xl, textAlign: 'center' }}>Tools for daily life</Heading>
+            <View style={{ gap: theme.spacing.xs + 4 }}>
+              {TOOLS_FEATURES.map(({ Icon, label }) => (
+                <View key={label} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Icon size={20} color={theme.colors.primary} strokeWidth={1.75} />
+                  <Body style={{ flex: 1, marginLeft: theme.spacing.sm, fontSize: theme.fontSize.sm }}>{label}</Body>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {page === 3 && (
           <View style={{ gap: theme.spacing.lg }}>
             <Heading style={{ fontSize: theme.fontSize.xl, textAlign: 'center' }}>Verses, connected</Heading>
             <Body style={{ color: theme.colors.textMuted, textAlign: 'center', paddingHorizontal: theme.spacing.md }}>
@@ -97,7 +143,7 @@ export default function OnboardingScreen() {
 
         <View style={{ gap: theme.spacing.md }}>
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: theme.spacing.xs }}>
-            {[0, 1, 2].map((i) => (
+            {[0, 1, 2, 3].map((i) => (
               <View
                 key={i}
                 style={{
@@ -109,7 +155,7 @@ export default function OnboardingScreen() {
               />
             ))}
           </View>
-          <PressableScale onPress={() => (page < 2 ? setPage(page + 1) : finish())} scaleTo={0.98}>
+          <PressableScale onPress={() => (page < 3 ? setPage(page + 1) : finish())} scaleTo={0.98}>
             <View
               style={{
                 backgroundColor: theme.colors.primary,
@@ -119,7 +165,7 @@ export default function OnboardingScreen() {
               }}
             >
               <Body style={{ color: theme.colors.onPrimary, fontFamily: theme.fontFamily.sansSemiBold }}>
-                {page < 2 ? 'Next' : 'Get Started'}
+                {page < 3 ? 'Next' : 'Get Started'}
               </Body>
             </View>
           </PressableScale>
