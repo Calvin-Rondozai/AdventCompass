@@ -55,6 +55,11 @@ for personal offline reading; the lesson text itself remains under the General
 Conference's copyright. See `DEV_MODE.md` for the full sourcing and licensing
 breakdown, plus the technical map of the codebase.
 
+## Legal
+
+- [Terms of Use](https://calvin-rondozai.github.io/AdventCompass/terms.html)
+- [Privacy Policy](https://calvin-rondozai.github.io/AdventCompass/privacy.html)
+
 ## License
 
 Personal-use project. Bundled third-party content retains its own license — see

@@ -62,13 +62,3 @@ footer {
   font-size: 14px;
   color: var(--muted);
 }
-.cards { display: grid; gap: 12px; }
-.card {
-  display: block;
-  background: var(--card);
-  border-radius: 12px;
-  padding: 20px;
-  text-decoration: none;
-  color: inherit;
-}
-.card strong { display: block; color: var(--accent); font-family: system-ui, sans-serif; margin-bottom: 4px; }
