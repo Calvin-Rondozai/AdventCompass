@@ -8,7 +8,8 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Body, Heading, Label } from '@/components/ui/Typography';
 
-const CONTACT_EMAIL = 'rondozaicalvin@gmail.com';
+import { CONTACT_EMAIL } from '@/constants/legal';
+
 const DEVELOPER = 'Calvin Rondozai';
 
 export default function AboutScreen() {

@@ -1,13 +1,11 @@
 import React, { useLayoutEffect } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Linking, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from 'expo-router';
 
 import { useTheme } from '@/theme/ThemeProvider';
 import { Body, Heading, Label } from '@/components/ui/Typography';
-
-const CONTACT_EMAIL = 'rondozaicalvin@gmail.com';
-const LAST_UPDATED = 'September 7, 2026';
+import { CONTACT_EMAIL, LEGAL_LAST_UPDATED, TERMS_URL } from '@/constants/legal';
 
 type Section = { title: string; paragraphs: string[] };
 
@@ -78,7 +76,13 @@ export default function TermsOfUseScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={['bottom']}>
       <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl }}>
         <Heading style={{ marginBottom: 4 }}>Terms of Use</Heading>
-        <Label style={{ marginBottom: theme.spacing.lg }}>Last updated: {LAST_UPDATED}</Label>
+        <Label style={{ marginBottom: theme.spacing.sm }}>Last updated: {LEGAL_LAST_UPDATED}</Label>
+        <Label
+          onPress={() => Linking.openURL(TERMS_URL)}
+          style={{ marginBottom: theme.spacing.lg, color: theme.colors.primary }}
+        >
+          View on the web
+        </Label>
 
         {SECTIONS.map((section, i) => (
           <View key={section.title} style={{ marginBottom: i === SECTIONS.length - 1 ? 0 : theme.spacing.lg }}>
