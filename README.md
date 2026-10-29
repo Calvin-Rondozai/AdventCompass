@@ -64,3 +64,7 @@ breakdown, plus the technical map of the codebase.
 
 Personal-use project. Bundled third-party content retains its own license — see
 `DEV_MODE.md`.
+
+## Legal
+https://calvin-rondozai.github.io/AdventCompass/terms.html
+https://calvin-rondozai.github.io/AdventCompass/privacy.html
